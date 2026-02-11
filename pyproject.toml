@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tlemmas-enumeration"
+version = "0.1.0"
+authors = [
+  { name="Massimo Michelutti", email="massimo.michelutti@studenti.unitn.it" },
+  { name="Emanuele Civini", email="emanuele.civini@studenti.unitn.it" },
+  { name="Gabriele Masina", email="gabriele.masina@unitn.it" }
+]
+description = ""
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "PySMT==0.9.7.dev333",
+    "allsat_cnf @ git+https://github.com/masinag/allsat-cnf@main",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.0",
+    "setuptools>=61.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = "src"
+addopts = [
+    "--import-mode=importlib",
+]
+
+# black configuration
+[tool.black]
+line-length = 120
