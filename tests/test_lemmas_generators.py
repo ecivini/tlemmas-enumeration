@@ -184,7 +184,7 @@ ALL_RAW_TEST_CASES = [
     TCase("Test lemmas", lambda _: read_smtlib(str(INPUT_FILES_PATH / "test_lemmas.smt2")), 1, 1, 2),
     TCase("Planning", lambda _: read_smtlib(str(INPUT_FILES_PATH / "6_2.smt2")), 360, 360, 21),
     TCase("Randgen", lambda _: read_smtlib(str(INPUT_FILES_PATH / "rng.smt")), 12, 2, 2),
-    # TCase("Randgen big", lambda _: read_smtlib(str(INPUT_FILES_PATH / "b10_d5_r10_s12345_01.smt2")), 88, 16, 16),
+    TCase("Randgen big", lambda _: read_smtlib(str(INPUT_FILES_PATH / "b10_d5_r10_s12345_01.smt2")), 88, 16, 16),
 ]
 
 
