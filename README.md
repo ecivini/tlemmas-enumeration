@@ -20,19 +20,18 @@ $ pysmt-install --msat
 ## Quick Start
 
 ```python
-from pysmt.shortcuts import Symbol, And, Or, Real, Solver
+from pysmt.shortcuts import Symbol, REAL
 from enumerators.solvers.mathsat_total import MathSATTotalEnumerator
-from enumerators.solvers.mathsat_partial_extended import MathSATExtendedPartialEnumerator
 
 # Create variables
-x = Symbol("x", Real)
-y = Symbol("y", Real)
+x = Symbol("x", REAL)
+y = Symbol("y", REAL)
 
 # Define a formula
 phi = (x + y >= 1) | (x + y <= 0)
 
 # Enumerate using Divide & Conquer enumeration
-enumerator = MathSATExtendedPartialEnumerator()
+enumerator = MathSATTotalEnumerator()
 result = enumerator.check_all_sat(phi)
 
 # Get the theory lemmas
