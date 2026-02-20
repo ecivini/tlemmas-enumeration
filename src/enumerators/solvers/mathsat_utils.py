@@ -23,6 +23,6 @@ def _allsat_callback_count(models: list[int]):
 
 def _allsat_callback_store(model, converter, models):
     """callback for partial all-sat"""
-    py_model = {converter.back(v) for v in model}
+    py_model = [converter.back(v) for v in model]
     models.append(py_model)
     return 1

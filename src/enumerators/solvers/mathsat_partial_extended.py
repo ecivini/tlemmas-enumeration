@@ -2,7 +2,7 @@
 
 import multiprocessing
 import time
-from typing import Dict, List
+from typing import Dict, Protocol
 
 import mathsat
 from allsat_cnf.polarity_cnfizer import PolarityCNFizer
@@ -46,7 +46,8 @@ _SOLVER: MathSAT5Solver | None = None
 
 
 def _initialize_worker(
-    partial_models: List[List[FNode]], phi: FNode, phi_atoms: List[FNode], tlemmas: List[FNode], solver_options: dict
+        partial_models: list[list[FNode]], phi: FNode, phi_atoms: list[FNode], tlemmas: list[FNode],
+        solver_options: dict
 ) -> None:
     global _PARTIAL_MODELS, _PHI, _TLEMMAS, _SOLVER, _PHI_ATOMS
 
@@ -115,6 +116,79 @@ def _parallel_worker(args: tuple) -> tuple:
     return found_models, found_models_count, found_tlemmas
 
 
+class DivideStrategy(Protocol):
+    @staticmethod
+    def divide(phi: FNode, atoms: list[FNode], n_workers: int) -> tuple[list[list[FNode]], list[FNode]]:
+        """
+        Partitions the search space of phi into disjoint T-SAT partial assignments.
+
+        Args:
+            phi: the formula to divide
+            atoms: the atoms to consider for the division (e.g., theory atoms)
+            n_workers: the number of workers that will solve the resulting partial assignments in parallel
+        Returns:
+            a list of partial assignments covering the search space of phi
+            a list of theory lemmas found during the division
+        """
+        ...
+
+
+class DivideByPartialAllSMTStrategy(DivideStrategy):
+    @staticmethod
+    def divide(phi: FNode, atoms, n_workers: int) -> tuple[list[list[FNode]], list[FNode]]:
+        phi = PolarityCNFizer(nnf=True, mutex_nnf_labels=True).convert_as_formula(phi)
+        partial_models = []
+        with Solver("msat", solver_options=MSAT_PARTIAL_ENUM_OPTIONS) as solver:
+            solver.add_assertion(phi)
+            converter = solver.converter
+            msat_env = solver.msat_env()
+            mathsat.msat_all_sat(
+                msat_env,
+                get_converted_atoms(atoms, converter),
+                callback=lambda model: _allsat_callback_store(model, converter, partial_models),
+            )
+
+            tlemmas = [
+                converter.back(l) for l in mathsat.msat_get_theory_lemmas(msat_env)
+            ]
+        return partial_models, tlemmas
+
+
+class DivideByProjectedEnumerationStrategy(DivideStrategy):
+    @staticmethod
+    def divide(phi: FNode, atoms, n_workers: int) -> tuple[list[list[FNode]], list[FNode]]:
+        min_partial_assignments = n_workers * 10
+        # choose a number of atoms such that 2**|atoms| >= 10 * n_workers, so to have enough partial models to keep all workers busy
+        n_atoms_to_project = min(len(atoms), (min_partial_assignments - 1).bit_length()) - 1
+        partial_models = []
+        tlemmas = []
+        with Solver("msat", solver_options=MSAT_TOTAL_ENUM_OPTIONS) as solver:
+            solver.add_assertion(phi)
+            converter = solver.converter
+            msat_env = solver.msat_env()
+            while len(partial_models) < min_partial_assignments and n_atoms_to_project <= len(atoms):
+                partial_models.clear()
+                n_atoms_to_project += 1
+                atoms_to_project = atoms[:n_atoms_to_project]
+                solver.push()
+                mathsat.msat_all_sat(
+                    msat_env,
+                    get_converted_atoms(atoms_to_project, converter),
+                    callback=lambda model: _allsat_callback_store(model, converter, partial_models),
+                )
+                tlemmas.extend([
+                    converter.back(l) for l in mathsat.msat_get_theory_lemmas(msat_env)
+                ])
+                solver.pop()
+
+        return partial_models, tlemmas
+
+
+def get_converted_atoms(atoms, converter) -> list[FNode]:
+    """Returns a list of normalized atoms"""
+    return [converter.convert(a) for a in atoms]
+
+
 class MathSATExtendedPartialEnumerator(SMTEnumerator):
     """A wrapper for the mathsat T-solver.
 
@@ -122,27 +196,26 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
     The result of the enumeration is a total enumeration of truth assignments."""
 
     def __init__(
-        self, computation_logger: Dict | None = None, project_on_theory_atoms: bool = True, parallel_procs: int = 1
+            self, computation_logger: Dict | None = None, project_on_theory_atoms: bool = True, parallel_procs: int = 1,
+            divide_strategy: type[DivideStrategy] = DivideByPartialAllSMTStrategy
     ):
         super().__init__(computation_logger=computation_logger)
         if parallel_procs < 1 or parallel_procs > multiprocessing.cpu_count():
             raise ValueError("parallel_procs must be between 1 and the number of CPU cores")
-        self.solver_partial = Solver("msat", solver_options=MSAT_PARTIAL_ENUM_OPTIONS)
         self.solver_total = Solver("msat", solver_options=MSAT_TOTAL_ENUM_OPTIONS)
         self.reset()
-        self._converter_partial = self.solver_partial.converter
         self._converter_total = self.solver_total.converter
         self._project_on_theory_atoms = project_on_theory_atoms
         self._parallel_procs = parallel_procs
+        self._divide_strategy = divide_strategy
 
     def reset(self):
-        self.solver_partial.reset_assertions()
         self.solver_total.reset_assertions()
         self._tlemmas = []
         self._models = []
         self._models_count = 0
 
-    def check_all_sat(self, phi: FNode, atoms: List[FNode] | None = None, store_models: bool = False) -> bool:
+    def check_all_sat(self, phi: FNode, atoms: list[FNode] | None = None, store_models: bool = False) -> bool:
         self.check_supports(phi)
         self.reset()
 
@@ -151,21 +224,9 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
             atoms = get_theory_atoms(atoms)
         self.atoms = atoms
 
-        phi_cnf = PolarityCNFizer(nnf=True, mutex_nnf_labels=True).convert_as_formula(phi)
-        self.solver_partial.add_assertion(phi_cnf)
-
         start_time = time.time()
-        partial_models = []
-        mathsat.msat_all_sat(
-            self.solver_partial.msat_env(),
-            self.get_converted_atoms(atoms, self._converter_partial),
-            callback=lambda model: _allsat_callback_store(model, self._converter_partial, partial_models),
-        )
-
-        self._tlemmas = [
-            self._converter_partial.back(l) for l in mathsat.msat_get_theory_lemmas(self.solver_partial.msat_env())
-        ]
-
+        partial_models, tlemmas = self._divide_strategy.divide(phi, atoms, self._parallel_procs)
+        self._tlemmas = tlemmas
         end_time = time.time()
         if self._computation_logger is not None:
             self._computation_logger["Partial AllSMT time"] = end_time - start_time
@@ -177,7 +238,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
         if self._parallel_procs <= 1:
             self.solver_total.add_assertion(phi)
             self.solver_total.add_assertions(self._tlemmas)
-            converted_atoms = self.get_converted_atoms(atoms, self._converter_total)
+            converted_atoms = get_converted_atoms(atoms, self._converter_total)
 
             for m in partial_models:
                 self.solver_total.push()
@@ -238,11 +299,11 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
 
         return SAT
 
-    def get_theory_lemmas(self) -> List[FNode]:
+    def get_theory_lemmas(self) -> list[FNode]:
         """Returns the theory lemmas found during the All-SAT computation"""
         return self._tlemmas
 
-    def get_models(self) -> List:
+    def get_models(self) -> list:
         """Returns the models found during the All-SAT computation"""
         return self._models
 
@@ -252,7 +313,3 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
     def get_converter(self):
         """Returns the converter used for the normalization of T-atoms"""
         return self._converter_partial
-
-    def get_converted_atoms(self, atoms, converter) -> List[FNode]:
-        """Returns a list of normalized atoms"""
-        return [converter.convert(a) for a in atoms]
