@@ -46,8 +46,7 @@ _SOLVER: MathSAT5Solver | None = None
 
 
 def _initialize_worker(
-        partial_models: list[list[FNode]], phi: FNode, phi_atoms: list[FNode], tlemmas: list[FNode],
-        solver_options: dict
+    partial_models: list[list[FNode]], phi: FNode, phi_atoms: list[FNode], tlemmas: list[FNode], solver_options: dict
 ) -> None:
     global _PARTIAL_MODELS, _PHI, _TLEMMAS, _SOLVER, _PHI_ATOMS
 
@@ -148,9 +147,7 @@ class DivideByPartialAllSMTStrategy(DivideStrategy):
                 callback=lambda model: _allsat_callback_store(model, converter, partial_models),
             )
 
-            tlemmas = [
-                converter.back(l) for l in mathsat.msat_get_theory_lemmas(msat_env)
-            ]
+            tlemmas = [converter.back(l) for l in mathsat.msat_get_theory_lemmas(msat_env)]
         return partial_models, tlemmas
 
 
@@ -176,9 +173,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
                     get_converted_atoms(atoms_to_project, converter),
                     callback=lambda model: _allsat_callback_store(model, converter, partial_models),
                 )
-                tlemmas.extend([
-                    converter.back(l) for l in mathsat.msat_get_theory_lemmas(msat_env)
-                ])
+                tlemmas.extend([converter.back(l) for l in mathsat.msat_get_theory_lemmas(msat_env)])
                 solver.pop()
 
         return partial_models, tlemmas
@@ -196,8 +191,11 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
     The result of the enumeration is a total enumeration of truth assignments."""
 
     def __init__(
-            self, computation_logger: Dict | None = None, project_on_theory_atoms: bool = True, parallel_procs: int = 1,
-            divide_strategy: type[DivideStrategy] = DivideByPartialAllSMTStrategy
+        self,
+        computation_logger: Dict | None = None,
+        project_on_theory_atoms: bool = True,
+        parallel_procs: int = 1,
+        divide_strategy: type[DivideStrategy] = DivideByPartialAllSMTStrategy,
     ):
         super().__init__(computation_logger=computation_logger)
         if parallel_procs < 1 or parallel_procs > multiprocessing.cpu_count():
@@ -312,4 +310,4 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
 
     def get_converter(self):
         """Returns the converter used for the normalization of T-atoms"""
-        return self._converter_partial
+        return self._converter_total
