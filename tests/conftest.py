@@ -4,7 +4,8 @@ from pysmt.shortcuts import REAL, Symbol
 from pysmt.typing import ArrayType, BOOL, INT
 
 from enumerators.formula import read_phi
-from enumerators.solvers.mathsat_partial_extended import MathSATExtendedPartialEnumerator
+from enumerators.solvers.mathsat_partial_extended import DivideByPartialAllSMTStrategy, \
+    DivideByProjectedEnumerationStrategy, MathSATExtendedPartialEnumerator
 from enumerators.solvers.mathsat_total import MathSATTotalEnumerator
 from enumerators.solvers.with_partitioning import WithPartitioningWrapper
 from enumerators.solvers.solver import SMTEnumerator
@@ -18,10 +19,14 @@ def pytest_runtest_setup():
 SOLVERS = [
     ("total", MathSATTotalEnumerator, {"project_on_theory_atoms": False}),
     ("total-project", MathSATTotalEnumerator, {"project_on_theory_atoms": True}),
-    ("partial-1", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 1}),
-    ("partial-project-1", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 1}),
-    ("partial-8", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 8}),
-    ("partial-project-8", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 8}),
+    ("partial-1-div_strategy-partial", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 1, "divide_strategy": DivideByPartialAllSMTStrategy}),
+    ("partial-1-div_strategy-project", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 1, "divide_strategy": DivideByProjectedEnumerationStrategy}),
+    ("partial-project-1-div_strategy-partial", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 1, "divide_strategy": DivideByPartialAllSMTStrategy}),
+    ("partial-project-1-div_strategy-project", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 1, "divide_strategy": DivideByProjectedEnumerationStrategy}),
+    ("partial-8-div_strategy-partial", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 8, "divide_strategy": DivideByPartialAllSMTStrategy}),
+    ("partial-8-div_strategy-project", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 8, "divide_strategy": DivideByProjectedEnumerationStrategy}),
+    ("partial-project-8-div_strategy-partial", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 8, "divide_strategy": DivideByPartialAllSMTStrategy}),
+    ("partial-project-8-div_strategy-project", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 8, "divide_strategy": DivideByProjectedEnumerationStrategy}),
 ]
 
 
