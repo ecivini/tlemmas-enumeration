@@ -163,7 +163,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             solver.add_assertion(phi)
             converter = solver.converter
             msat_env = solver.msat_env()
-            while len(partial_models) < min_partial_assignments and n_atoms_to_project <= len(atoms):
+            while len(partial_models) < min_partial_assignments and n_atoms_to_project < len(atoms):
                 partial_models.clear()
                 n_atoms_to_project += 1
                 atoms_to_project = atoms[:n_atoms_to_project]
