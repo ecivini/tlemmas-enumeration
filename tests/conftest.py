@@ -30,11 +30,16 @@ def solver(request) -> SMTEnumerator:
     _, solver_cls, params = request.param
     return solver_cls(**params)
 
-@pytest.fixture(params=["raw", "partitioned"], ids=["mode:raw", "mode:part"])
+@pytest.fixture(params=["raw", "partitioned", "partitioned-on-components"], ids=["mode:raw", "mode:part", "mode:part-comp"])
 def wsolver(solver, request):
     if request.param == "raw":
         return solver
-    return WithPartitioningWrapper(base_solver=solver)
+    elif request.param == "partitioned":
+        return WithPartitioningWrapper(base_solver=solver, partition_on_formula_components=False)
+    elif request.param == "partitioned-on-components":
+        return WithPartitioningWrapper(base_solver=solver, partition_on_formula_components=True)
+    else:
+        raise ValueError(f"Unknown partitioning mode: {request.param}")
 
 
 @pytest.fixture
