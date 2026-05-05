@@ -102,7 +102,7 @@ class WithPartitioningWrapper(SMTEnumerator):
     def __init__(
         self,
         base_solver: SMTEnumerator,
-        partition_on_formula_components: bool = True,
+        partition_on_formula_components: bool = False,
         computation_logger: dict | None = None,
     ):
         super().__init__(computation_logger)
@@ -128,7 +128,7 @@ class WithPartitioningWrapper(SMTEnumerator):
         partitions = partition_atoms(atoms)
 
         # partition the formula based on the And-conjoined components
-        component_to_atoms, atom_to_components = [], {}
+        component_to_atoms, atom_to_components = {}, {}
         if self._partition_on_formula_components:
             component_to_atoms, atom_to_components = get_conjoined_components(phi)
 
