@@ -157,7 +157,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
         cls, phi: FNode, atoms, n_workers: int, min_partial_models: int = 0
     ) -> tuple[list[list[FNode]], list[FNode]]:
         if min_partial_models <= 0:
-            min_partial_models = n_workers * 10
+            min_partial_models = n_workers * 100
         atoms = cls._rank_atoms_by_hub_centrality(atoms, phi)
         # choose a number of atoms such that 2**|atoms| >= 10 * n_workers, so to have enough partial models to keep all workers busy
         n_atoms_to_project = min(len(atoms), (min_partial_models - 1).bit_length()) - 1
