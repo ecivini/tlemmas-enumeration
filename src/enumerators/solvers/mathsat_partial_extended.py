@@ -26,9 +26,7 @@ from .mathsat_utils import (
 
 
 _PARTIAL_MODELS = []
-_TLEMMAS = []
-_PHI = None
-_PHI_ATOMS = []
+_PROJ_ATOMS = []
 _SOLVER: MathSAT5Solver | None = None
 _CONTEXTUALIZER: FormulaContextualizer | None = None
 
@@ -36,26 +34,26 @@ _CONTEXTUALIZER: FormulaContextualizer | None = None
 def _initialize_worker(
     partial_models: list[list[FNode]],
     phi: FNode,
-    phi_atoms: list[FNode],
+    proj_atoms: list[FNode],
     tlemmas: list[FNode],
     solver_options: dict,
 ) -> None:
-    global _PARTIAL_MODELS, _TLEMMAS, _PHI, _PHI_ATOMS, _SOLVER, _CONTEXTUALIZER
+    global _PARTIAL_MODELS, _PROJ_ATOMS, _SOLVER, _CONTEXTUALIZER
 
     contextualizer = FormulaContextualizer()
     _CONTEXTUALIZER = contextualizer
 
     _PARTIAL_MODELS = partial_models
-    _TLEMMAS = [contextualizer.walk(lemma) for lemma in tlemmas]
-    _PHI = contextualizer.walk(phi)
 
     _SOLVER = cast(MathSAT5Solver, Solver("msat", solver_options=solver_options))
     converter = _SOLVER.converter
 
-    _PHI_ATOMS = [converter.convert(contextualizer.walk(atom)) for atom in phi_atoms]
+    _PROJ_ATOMS = [converter.convert(contextualizer.walk(atom)) for atom in proj_atoms]
 
-    _SOLVER.add_assertion(_PHI)
-    _SOLVER.add_assertions(_TLEMMAS)
+    phi = contextualizer.walk(phi)
+    _SOLVER.add_assertion(phi)
+    tlemmas = [contextualizer.walk(lemma) for lemma in tlemmas]
+    _SOLVER.add_assertions(tlemmas)
 
 
 def _parallel_worker(args: tuple) -> tuple[list[str], int, str]:
@@ -67,7 +65,7 @@ def _parallel_worker(args: tuple) -> tuple[list[str], int, str]:
     Returns:
         tuple of local_models, local_model_count, total_lemmas string
     """
-    global _PARTIAL_MODELS, _TLEMMAS, _PHI, _PHI_ATOMS, _SOLVER, _CONTEXTUALIZER
+    global _PARTIAL_MODELS, _TLEMMAS, _PHI, _PROJ_ATOMS, _SOLVER, _CONTEXTUALIZER
 
     model_id, store_models = args
 
@@ -76,7 +74,7 @@ def _parallel_worker(args: tuple) -> tuple[list[str], int, str]:
     converter = solver.converter
 
     contextualizer = cast(FormulaContextualizer, _CONTEXTUALIZER)
-    converted_atoms = _PHI_ATOMS
+    converted_atoms = _PROJ_ATOMS
 
     model = _PARTIAL_MODELS[model_id]
 
