@@ -2,7 +2,7 @@
 
 import multiprocessing
 import time
-from typing import Dict, Protocol, cast
+from typing import Protocol, cast
 
 import mathsat
 from allsat_cnf.polarity_cnfizer import PolarityCNFizer
@@ -24,9 +24,7 @@ from .mathsat_utils import (
 )
 
 
-def _contextualize(
-    contextualizer: FormulaContextualizer, formulas: Nested[FNode]
-) -> Nested[FNode]:
+def _contextualize(contextualizer: FormulaContextualizer, formulas: Nested[FNode]) -> Nested[FNode]:
     """Contextualizes a collection of formulas using the provided contextualizer
 
     Args:
@@ -103,9 +101,7 @@ def _parallel_worker(args: tuple) -> tuple[list[list[FNode]], int, list[FNode]]:
         mathsat.msat_all_sat(
             local_solver.msat_env(),
             converted_atoms,
-            callback=lambda model: allsat_callback_store(
-                model, local_converter, found_models
-            ),
+            callback=lambda model: allsat_callback_store(model, local_converter, found_models),
         )
         found_models_count = len(found_models)
     else:
@@ -117,10 +113,7 @@ def _parallel_worker(args: tuple) -> tuple[list[list[FNode]], int, list[FNode]]:
         )
         found_models_count = models_count_l[0]
 
-    found_tlemmas = [
-        local_converter.back(l)
-        for l in mathsat.msat_get_theory_lemmas(local_solver.msat_env())
-    ]
+    found_tlemmas = [local_converter.back(l) for l in mathsat.msat_get_theory_lemmas(local_solver.msat_env())]
 
     local_solver.pop()
     local_solver.add_assertion(And(found_tlemmas))
@@ -130,9 +123,7 @@ def _parallel_worker(args: tuple) -> tuple[list[list[FNode]], int, list[FNode]]:
 
 class DivideStrategy(Protocol):
     @classmethod
-    def divide(
-        cls, phi: FNode, atoms: list[FNode], n_workers: int
-    ) -> tuple[list[list[FNode]], list[FNode]]:
+    def divide(cls, phi: FNode, atoms: list[FNode], n_workers: int) -> tuple[list[list[FNode]], list[FNode]]:
         """
         Partitions the search space of phi into disjoint T-SAT partial assignments.
 
@@ -149,9 +140,7 @@ class DivideStrategy(Protocol):
 
 class DivideByPartialAllSMTStrategy(DivideStrategy):
     @classmethod
-    def divide(
-        cls, phi: FNode, atoms: list[FNode], n_workers: int
-    ) -> tuple[list[list[FNode]], list[FNode]]:
+    def divide(cls, phi: FNode, atoms: list[FNode], n_workers: int) -> tuple[list[list[FNode]], list[FNode]]:
         phi = PolarityCNFizer(nnf=True, mutex_nnf_labels=True).convert_as_formula(phi)
         partial_models = []
         with Solver("msat", solver_options=MSAT_PARTIAL_ENUM_OPTIONS) as solver:
@@ -161,14 +150,10 @@ class DivideByPartialAllSMTStrategy(DivideStrategy):
             mathsat.msat_all_sat(
                 msat_env,
                 get_converted_atoms(atoms, converter),
-                callback=lambda model: allsat_callback_store(
-                    model, converter, partial_models
-                ),
+                callback=lambda model: allsat_callback_store(model, converter, partial_models),
             )
 
-            tlemmas = [
-                converter.back(l) for l in mathsat.msat_get_theory_lemmas(msat_env)
-            ]
+            tlemmas = [converter.back(l) for l in mathsat.msat_get_theory_lemmas(msat_env)]
         return partial_models, tlemmas
 
 
@@ -188,9 +173,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             solver.add_assertion(phi)
             converter = solver.converter
             msat_env = solver.msat_env()
-            while len(partial_models) < min_partial_models and n_atoms_to_project < len(
-                atoms
-            ):
+            while len(partial_models) < min_partial_models and n_atoms_to_project < len(atoms):
                 partial_models.clear()
                 n_atoms_to_project += 1
                 atoms_to_project = atoms[:n_atoms_to_project]
@@ -198,24 +181,15 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
                 mathsat.msat_all_sat(
                     msat_env,
                     get_converted_atoms(atoms_to_project, converter),
-                    callback=lambda model: allsat_callback_store(
-                        model, converter, partial_models
-                    ),
+                    callback=lambda model: allsat_callback_store(model, converter, partial_models),
                 )
-                tlemmas.extend(
-                    [
-                        converter.back(l)
-                        for l in mathsat.msat_get_theory_lemmas(msat_env)
-                    ]
-                )
+                tlemmas.extend([converter.back(l) for l in mathsat.msat_get_theory_lemmas(msat_env)])
                 solver.pop()
 
         return partial_models, tlemmas
 
     @classmethod
-    def _rank_atoms_by_hub_centrality(
-        cls, atoms: list[FNode], phi: FNode
-    ) -> list[FNode]:
+    def _rank_atoms_by_hub_centrality(cls, atoms: list[FNode], phi: FNode) -> list[FNode]:
         var_freq = {}
         for atom in atoms:
             for var in atom.get_free_variables():
@@ -240,16 +214,14 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
 
     def __init__(
         self,
-        computation_logger: Dict | None = None,
+        computation_logger: dict | None = None,
         project_on_theory_atoms: bool = True,
         parallel_procs: int = 1,
         divide_strategy: type[DivideStrategy] = DivideByPartialAllSMTStrategy,
     ):
         super().__init__(computation_logger=computation_logger)
         if parallel_procs < 1 or parallel_procs > multiprocessing.cpu_count():
-            raise ValueError(
-                "parallel_procs must be between 1 and the number of CPU cores"
-            )
+            raise ValueError("parallel_procs must be between 1 and the number of CPU cores")
         self.solver_total = Solver("msat", solver_options=MSAT_TOTAL_ENUM_OPTIONS)
         self.reset()
         self._converter_total = self.solver_total.converter
@@ -263,9 +235,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
         self._models = []
         self._models_count = 0
 
-    def check_all_sat(
-        self, phi: FNode, atoms: list[FNode] | None = None, store_models: bool = False
-    ) -> bool:
+    def check_all_sat(self, phi: FNode, atoms: list[FNode] | None = None, store_models: bool = False) -> bool:
         self.check_supports(phi)
         self.reset()
 
@@ -275,9 +245,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
         self.atoms = atoms
 
         start_time = time.time()
-        partial_models, tlemmas = self._divide_strategy.divide(
-            phi, atoms, self._parallel_procs
-        )
+        partial_models, tlemmas = self._divide_strategy.divide(phi, atoms, self._parallel_procs)
         self._tlemmas = tlemmas
         end_time = time.time()
         if self._computation_logger is not None:
@@ -301,9 +269,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
                     mathsat.msat_all_sat(
                         self.solver_total.msat_env(),
                         converted_atoms,
-                        callback=lambda model: allsat_callback_store(
-                            model, self._converter_total, models
-                        ),
+                        callback=lambda model: allsat_callback_store(model, self._converter_total, models),
                     )
                     self._models_count += len(models)
                     self._models.extend(models)
@@ -317,10 +283,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
                     self._models_count += models_count_l[0]
 
                 tlemmas_total = [
-                    self._converter_total.back(l)
-                    for l in mathsat.msat_get_theory_lemmas(
-                        self.solver_total.msat_env()
-                    )
+                    self._converter_total.back(l) for l in mathsat.msat_get_theory_lemmas(self.solver_total.msat_env())
                 ]
 
                 self._tlemmas += tlemmas_total
@@ -347,9 +310,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
             )
             with pool:
                 # Use imap_unordered to process results as they complete
-                for models, models_count, lemmas_batch in pool.imap_unordered(
-                    _parallel_worker, worker_args
-                ):
+                for models, models_count, lemmas_batch in pool.imap_unordered(_parallel_worker, worker_args):
                     contextualizer = FormulaContextualizer()
                     self._models.extend(_contextualize(contextualizer, models))
                     new_tlemmas.extend(_contextualize(contextualizer, lemmas_batch))
