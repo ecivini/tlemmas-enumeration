@@ -1,4 +1,5 @@
 from io import StringIO
+from enumerators.util.pysmt import SuspendTypeChecking
 
 from pysmt.shortcuts import And
 from pysmt.fnode import FNode
@@ -69,7 +70,8 @@ def formula_to_conjuncts(formula: FNode) -> list[FNode]:
 
 def serialize_conjunction(formulas: list[FNode]) -> str:
     """Serialize a conjunction of formulas to SMT-LIB text."""
-    return serialize_formula(And(formulas))
+    with SuspendTypeChecking():
+        return serialize_formula(And(formulas))
 
 
 def deserialize_conjunction(formula_str: str, parser: SmtLibParser) -> list[FNode]:

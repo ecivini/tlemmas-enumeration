@@ -8,7 +8,7 @@ import mathsat
 from allsat_cnf.polarity_cnfizer import PolarityCNFizer
 from pysmt.fnode import FNode
 from pysmt.formula import FormulaContextualizer
-from pysmt.shortcuts import And, Solver
+from pysmt.shortcuts import Solver
 from pysmt.smtlib.parser import SmtLibParser
 from pysmt.solvers.msat import MathSAT5Solver
 
@@ -281,7 +281,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
                 self._tlemmas += tlemmas_total
                 self.solver_total.pop()
 
-                self.solver_total.add_assertion(And(tlemmas_total))
+                self.solver_total.add_assertions(tlemmas_total)
 
         else:
             # Prepare arguments for each worker
