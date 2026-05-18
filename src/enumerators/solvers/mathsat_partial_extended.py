@@ -19,8 +19,8 @@ from enumerators.util.pysmt import SuspendTypeChecking
 from .mathsat_utils import (
     MSAT_PARTIAL_ENUM_OPTIONS,
     MSAT_TOTAL_ENUM_OPTIONS,
-    _allsat_callback_count,
-    _allsat_callback_store,
+    allsat_callback_count,
+    allsat_callback_store,
 )
 
 
@@ -103,7 +103,7 @@ def _parallel_worker(args: tuple) -> tuple[list[list[FNode]], int, list[FNode]]:
         mathsat.msat_all_sat(
             local_solver.msat_env(),
             converted_atoms,
-            callback=lambda model: _allsat_callback_store(
+            callback=lambda model: allsat_callback_store(
                 model, local_converter, found_models
             ),
         )
@@ -113,7 +113,7 @@ def _parallel_worker(args: tuple) -> tuple[list[list[FNode]], int, list[FNode]]:
         mathsat.msat_all_sat(
             local_solver.msat_env(),
             converted_atoms,
-            callback=lambda _: _allsat_callback_count(models_count_l),
+            callback=lambda _: allsat_callback_count(models_count_l),
         )
         found_models_count = models_count_l[0]
 
@@ -161,7 +161,7 @@ class DivideByPartialAllSMTStrategy(DivideStrategy):
             mathsat.msat_all_sat(
                 msat_env,
                 get_converted_atoms(atoms, converter),
-                callback=lambda model: _allsat_callback_store(
+                callback=lambda model: allsat_callback_store(
                     model, converter, partial_models
                 ),
             )
@@ -198,7 +198,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
                 mathsat.msat_all_sat(
                     msat_env,
                     get_converted_atoms(atoms_to_project, converter),
-                    callback=lambda model: _allsat_callback_store(
+                    callback=lambda model: allsat_callback_store(
                         model, converter, partial_models
                     ),
                 )
@@ -301,7 +301,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
                     mathsat.msat_all_sat(
                         self.solver_total.msat_env(),
                         converted_atoms,
-                        callback=lambda model: _allsat_callback_store(
+                        callback=lambda model: allsat_callback_store(
                             model, self._converter_total, models
                         ),
                     )
@@ -312,7 +312,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
                     mathsat.msat_all_sat(
                         self.solver_total.msat_env(),
                         converted_atoms,
-                        callback=lambda _: _allsat_callback_count(models_count_l),
+                        callback=lambda _: allsat_callback_count(models_count_l),
                     )
                     self._models_count += models_count_l[0]
 
