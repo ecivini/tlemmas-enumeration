@@ -1,7 +1,7 @@
 import itertools as it
 import time
 from collections import defaultdict
-from typing import Collection, List
+from typing import Collection
 
 from pysmt.fnode import FNode
 from pysmt.shortcuts import And
@@ -78,9 +78,7 @@ def get_partition_relevant_formula_and_lemmas(
     """
     Constructs a partition-relevant formula and filters lemmas based on shared atoms.
     """
-    touched_components = {
-        comp for atom in part_atoms for comp in atom_to_components[atom]
-    }
+    touched_components = {comp for atom in part_atoms for comp in atom_to_components[atom]}
     n_touched, n_components = len(touched_components), len(component_to_atoms)
     print(f"Touched components: {n_touched}/{n_components}")
 
@@ -89,9 +87,7 @@ def get_partition_relevant_formula_and_lemmas(
         return psi, tlemmas
 
     psi_atoms = set().union(*(component_to_atoms[c] for c in touched_components))
-    relevant_lemmas = [
-        lemma for lemma in tlemmas if not psi_atoms.isdisjoint(lemma.get_atoms())
-    ]
+    relevant_lemmas = [lemma for lemma in tlemmas if not psi_atoms.isdisjoint(lemma.get_atoms())]
     n_relevant_lemmas, n_lemmas = len(relevant_lemmas), len(tlemmas)
     print(f"Using {n_relevant_lemmas}/{n_lemmas} relevant lemmas for this partition.")
 
@@ -152,9 +148,7 @@ class WithPartitioningWrapper(SMTEnumerator):
                     part_atoms,
                     self._tlemmas,
                 )
-            result = self._base_solver.check_all_sat(
-                And(psi, *relevant_lemmas), list(part_atoms), store_models
-            )
+            result = self._base_solver.check_all_sat(And(psi, *relevant_lemmas), list(part_atoms), store_models)
             if not result:
                 overall_result = False
             self._tlemmas.extend(self._base_solver.get_theory_lemmas())
@@ -165,13 +159,13 @@ class WithPartitioningWrapper(SMTEnumerator):
             print("Partition solved in {:.2f} seconds.".format(end_time - start_time))
         return overall_result
 
-    def get_theory_lemmas(self) -> List[FNode]:
+    def get_theory_lemmas(self) -> list[FNode]:
         return self._tlemmas
 
     def get_converter(self) -> object:
         return self._base_solver.get_converter()
 
-    def get_models(self) -> List:
+    def get_models(self) -> list:
         return self._models
 
     def get_models_count(self) -> int:

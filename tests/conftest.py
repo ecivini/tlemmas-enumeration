@@ -49,13 +49,9 @@ def wsolver(solver, request):
     if request.param == "raw":
         return solver
     elif request.param == "partitioned":
-        return WithPartitioningWrapper(
-            base_solver=solver, partition_on_formula_components=False
-        )
+        return WithPartitioningWrapper(base_solver=solver, partition_on_formula_components=False)
     elif request.param == "partitioned-on-components":
-        return WithPartitioningWrapper(
-            base_solver=solver, partition_on_formula_components=True
-        )
+        return WithPartitioningWrapper(base_solver=solver, partition_on_formula_components=True)
     else:
         raise ValueError(f"Unknown partitioning mode: {request.param}")
 
@@ -176,9 +172,7 @@ def rangen_formula():
     return read_phi("./tests/items/rng.smt")
 
 
-@pytest.fixture(
-    params=["sat_formula", "unsat_formula", "valid_formula", "rangen_formula"]
-)
+@pytest.fixture(params=["sat_formula", "unsat_formula", "valid_formula", "rangen_formula"])
 def any_formula(request):
     """Return all formula fixtures one by one via parametrization"""
     return request.getfixturevalue(request.param)

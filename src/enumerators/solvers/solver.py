@@ -1,7 +1,6 @@
 """interface that all solvers must implement."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, List
 
 from pysmt.fnode import FNode
 
@@ -14,7 +13,7 @@ class SMTEnumerator(ABC):
     This interface must be implemented by all the solvers that are used to compute all-SMT.
     """
 
-    def __init__(self, computation_logger: Dict | None = None):
+    def __init__(self, computation_logger: dict | None = None):
         self._tlemmas = []
         self._computation_logger = computation_logger
 
@@ -24,12 +23,12 @@ class SMTEnumerator(ABC):
         pass
 
     @abstractmethod
-    def check_all_sat(self, phi: FNode, atoms: List[FNode] | None = None, store_models: bool = False) -> bool:
+    def check_all_sat(self, phi: FNode, atoms: list[FNode] | None = None, store_models: bool = False) -> bool:
         """Runs All-SMT on the formula phi and stores t-lemmas
 
         Args:
             phi (FNode): a pysmt formula
-            atoms (List[FNode] | None) [None]: list of atoms to consider for All-SMT
+            atoms (list[FNode] | None) [None]: list of atoms to consider for All-SMT
             store_models (bool) [False]: if True, the models found during All-SMT are stored
 
         Returns:
@@ -38,7 +37,7 @@ class SMTEnumerator(ABC):
         pass
 
     @abstractmethod
-    def get_theory_lemmas(self) -> List[FNode]:
+    def get_theory_lemmas(self) -> list[FNode]:
         """return the list of theory lemmas"""
         pass
 
@@ -48,7 +47,7 @@ class SMTEnumerator(ABC):
         pass
 
     @abstractmethod
-    def get_models(self) -> List:
+    def get_models(self) -> list[list[FNode]]:
         """return the list of models"""
         pass
 
