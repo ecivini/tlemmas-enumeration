@@ -113,7 +113,7 @@ def _parallel_worker(args: tuple) -> tuple[list[list[FNode]], int, list[FNode]]:
         )
         found_models_count = models_count_l[0]
 
-    found_tlemmas = [local_converter.back(l) for l in mathsat.msat_get_theory_lemmas(local_solver.msat_env())]
+    found_tlemmas = [local_converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(local_solver.msat_env())]
 
     local_solver.pop()
     local_solver.add_assertion(And(found_tlemmas))
@@ -153,7 +153,7 @@ class DivideByPartialAllSMTStrategy(DivideStrategy):
                 callback=lambda model: allsat_callback_store(model, converter, partial_models),
             )
 
-            tlemmas = [converter.back(l) for l in mathsat.msat_get_theory_lemmas(msat_env)]
+            tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
         return partial_models, tlemmas
 
 
@@ -183,7 +183,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
                     get_converted_atoms(atoms_to_project, converter),
                     callback=lambda model: allsat_callback_store(model, converter, partial_models),
                 )
-                tlemmas.extend([converter.back(l) for l in mathsat.msat_get_theory_lemmas(msat_env)])
+                tlemmas.extend([converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)])
                 solver.pop()
 
         return partial_models, tlemmas
@@ -283,7 +283,8 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
                     self._models_count += models_count_l[0]
 
                 tlemmas_total = [
-                    self._converter_total.back(l) for l in mathsat.msat_get_theory_lemmas(self.solver_total.msat_env())
+                    self._converter_total.back(lemma)
+                    for lemma in mathsat.msat_get_theory_lemmas(self.solver_total.msat_env())
                 ]
 
                 self._tlemmas += tlemmas_total

@@ -1,4 +1,4 @@
-from pysmt.shortcuts import And, Or, Not, Int, Symbol, Equals, Implies, is_valid, Iff
+from pysmt.shortcuts import And, Or, Int, Symbol, Equals, Implies, is_valid, Iff
 from enumerators.walkers.walker_bool_abstraction import BooleanAbstractionWalker
 
 
