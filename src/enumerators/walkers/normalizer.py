@@ -7,7 +7,7 @@ from pysmt.walkers import DagWalker, handles
 
 
 class NormalizerWalker(DagWalker):
-    """A walker to normalize smt formulas acccording to a converter"""
+    """A walker to normalize smt formulas according to a converter"""
 
     def __init__(self, converter, env=None, invalidate_memoization=False):
         DagWalker.__init__(self, env, invalidate_memoization)
@@ -29,7 +29,7 @@ class NormalizerWalker(DagWalker):
         # symbols and constants do not change
         return formula
 
-    @handles(op.BOOL_CONNECTIVES)
+    @handles(*op.BOOL_CONNECTIVES, op.ITE)
     def walk_bool_op(self, formula: FNode, args: tuple[FNode], **kwargs) -> FNode:
         # Boolean connectives just connect normalized children
         return self.mgr.create_node(formula.node_type(), tuple(args))

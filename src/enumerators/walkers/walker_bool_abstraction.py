@@ -43,7 +43,7 @@ class BooleanAbstractionWalker(DagWalker):
         # symbols and constants do not change
         return formula
 
-    @handles(op.BOOL_CONNECTIVES)
+    @handles(*op.BOOL_CONNECTIVES, op.ITE)
     def walk_bool_op(self, formula: FNode, args: tuple[FNode], **kwargs) -> FNode:
         # Boolean connectives just connect normalized children
         return self.mgr.create_node(formula.node_type(), tuple(args))

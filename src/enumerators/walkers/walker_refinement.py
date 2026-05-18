@@ -4,10 +4,6 @@ from pysmt.walkers import DagWalker, handles
 import pysmt.operators as op
 from pysmt.fnode import FNode
 
-from pysmt.shortcuts import And, Or, Iff, Implies, TRUE, FALSE, Not, Ite, BOOL
-
-from enumerators.util.custom_exceptions import UnsupportedNodeException
-
 
 class RefinementWalker(DagWalker):
     """A walker that converts an abstracted formula into its refinment"""
@@ -27,9 +23,7 @@ class RefinementWalker(DagWalker):
         return self.env.formula_manager
 
     def _refine(self, formula):
-        assert formula in self.refinement, (
-            f"Formula {formula} not in abstraction mapping"
-        )
+        assert formula in self.refinement, f"Formula {formula} not in abstraction mapping"
         return self.refinement[formula]
 
     @handles(*op.RELATIONS, op.FUNCTION)
@@ -43,7 +37,7 @@ class RefinementWalker(DagWalker):
         # symbols and constants do not change
         return formula
 
-    @handles(op.BOOL_CONNECTIVES)
+    @handles(*op.BOOL_CONNECTIVES, op.ITE)
     def walk_bool_op(self, formula: FNode, args: tuple[FNode], **kwargs) -> FNode:
         # Boolean connectives just connect normalized children
         return self.mgr.create_node(formula.node_type(), tuple(args))
