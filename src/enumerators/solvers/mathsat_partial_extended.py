@@ -305,8 +305,8 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
                 # Use imap_unordered to process results as they complete
                 total_deserialization_time = 0.0
                 for models, models_count, lemmas_batch_str in pool.imap_unordered(_parallel_worker, worker_args):
-                    self._models.extend([deserialize_conjunction(model_str, parser) for model_str in models])
                     start_time = time.time()
+                    self._models.extend([deserialize_conjunction(model_str, parser) for model_str in models])
                     new_tlemmas.extend(deserialize_conjunction(lemmas_batch_str, parser))
                     total_deserialization_time += time.time() - start_time
                     self._models_count += models_count

@@ -60,7 +60,10 @@ def formula_to_conjuncts(formula: FNode) -> list[FNode]:
     if formula.is_true():
         return []
     if formula.is_and():
-        return list(formula.args())
+        conjuncts = []
+        for arg in formula.args():
+            conjuncts.extend(formula_to_conjuncts(arg))
+        return conjuncts
     return [formula]
 
 
