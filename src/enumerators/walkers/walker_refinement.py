@@ -6,7 +6,7 @@ from pysmt.fnode import FNode
 
 
 class RefinementWalker(DagWalker):
-    """A walker that converts an abstracted formula into its refinment"""
+    """A walker that converts an abstracted formula into its refinement"""
 
     def __init__(
         self,
