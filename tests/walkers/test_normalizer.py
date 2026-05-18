@@ -14,7 +14,6 @@ def converter():
 
 
 def test_normalizer_walker(converter):
-
     x = Symbol("X", REAL)
     y = Symbol("Y", REAL)
     flag = Symbol("F", BOOL)

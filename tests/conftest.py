@@ -1,11 +1,14 @@
 import pysmt.environment
 import pytest
 from pysmt.shortcuts import REAL, Symbol
-from pysmt.typing import ArrayType, BOOL, INT
+from pysmt.typing import ArrayType, BOOL, INT, BV8
 
 from enumerators.formula import read_phi
-from enumerators.solvers.mathsat_partial_extended import DivideByPartialAllSMTStrategy, \
-    DivideByProjectedEnumerationStrategy, MathSATExtendedPartialEnumerator
+from enumerators.solvers.mathsat_partial_extended import (
+    DivideByPartialAllSMTStrategy,
+    DivideByProjectedEnumerationStrategy,
+    MathSATExtendedPartialEnumerator,
+)
 from enumerators.solvers.mathsat_total import MathSATTotalEnumerator
 from enumerators.solvers.with_partitioning import WithPartitioningWrapper
 from enumerators.solvers.solver import SMTEnumerator
@@ -16,6 +19,7 @@ def pytest_runtest_setup():
     env.enable_infix_notation = True
 
 
+# fmt: off
 SOLVERS = [
     ("total", MathSATTotalEnumerator, {"project_on_theory_atoms": False}),
     ("total-project", MathSATTotalEnumerator, {"project_on_theory_atoms": True}),
@@ -28,6 +32,7 @@ SOLVERS = [
     ("partial-project-8-div_strategy-partial", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 8, "divide_strategy": DivideByPartialAllSMTStrategy}),
     ("partial-project-8-div_strategy-project", MathSATExtendedPartialEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 8, "divide_strategy": DivideByProjectedEnumerationStrategy}),
 ]
+# fmt: on
 
 
 @pytest.fixture(params=SOLVERS, ids=lambda s: s[0])
@@ -35,7 +40,11 @@ def solver(request) -> SMTEnumerator:
     _, solver_cls, params = request.param
     return solver_cls(**params)
 
-@pytest.fixture(params=["raw", "partitioned", "partitioned-on-components"], ids=["mode:raw", "mode:part", "mode:part-comp"])
+
+@pytest.fixture(
+    params=["raw", "partitioned", "partitioned-on-components"],
+    ids=["mode:raw", "mode:part", "mode:part-comp"],
+)
 def wsolver(solver, request):
     if request.param == "raw":
         return solver
@@ -49,7 +58,11 @@ def wsolver(solver, request):
 
 @pytest.fixture
 def solver_info(wsolver) -> tuple[SMTEnumerator, bool, bool]:
-    return wsolver, getattr(wsolver, "_project_on_theory_atoms", False), isinstance(wsolver, WithPartitioningWrapper)
+    return (
+        wsolver,
+        getattr(wsolver, "_project_on_theory_atoms", False),
+        isinstance(wsolver, WithPartitioningWrapper),
+    )
 
 
 # ---- Real variables ----
@@ -107,12 +120,12 @@ def b():
 # ---- BV variables ----
 @pytest.fixture
 def bv1():
-    return Symbol("bv1", pysmt.typing.BV8)
+    return Symbol("bv1", BV8)
 
 
 @pytest.fixture
 def bv2():
-    return Symbol("bv2", pysmt.typing.BV8)
+    return Symbol("bv2", BV8)
 
 
 # ---- Array variables ----

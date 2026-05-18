@@ -10,9 +10,7 @@ TEST_CASES = [
     ),
     (
         lambda: And(Symbol("a"), Or(Symbol("b"), And(Symbol("b"), Symbol("c")))),
-        lambda: frozenset(
-            [Symbol("a"), Or(Symbol("b"), And(Symbol("b"), Symbol("c")))]
-        ),
+        lambda: frozenset([Symbol("a"), Or(Symbol("b"), And(Symbol("b"), Symbol("c")))]),
     ),
     (
         lambda: And(
@@ -23,9 +21,7 @@ TEST_CASES = [
             ),
             And(Symbol("a"), Symbol("c")),
         ),
-        lambda: frozenset(
-            [Symbol("a"), Symbol("b"), Symbol("c"), Or(Symbol("a"), Symbol("c"))]
-        ),
+        lambda: frozenset([Symbol("a"), Symbol("b"), Symbol("c"), Or(Symbol("a"), Symbol("c"))]),
     ),
 ]
 

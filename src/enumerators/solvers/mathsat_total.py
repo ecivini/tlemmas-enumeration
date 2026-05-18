@@ -1,6 +1,6 @@
 """this module handles interactions with the mathsat solver"""
 
-from typing import Dict, Iterable, List
+from typing import Iterable
 
 import mathsat
 from pysmt.fnode import FNode
@@ -9,13 +9,21 @@ from pysmt.shortcuts import Solver
 from enumerators.constants import SAT, UNSAT
 from enumerators.formula import get_theory_atoms
 from enumerators.solvers.solver import SMTEnumerator
-from enumerators.solvers.mathsat_utils import MSAT_TOTAL_ENUM_OPTIONS, _allsat_callback_count, _allsat_callback_store
+from enumerators.solvers.mathsat_utils import (
+    MSAT_TOTAL_ENUM_OPTIONS,
+    allsat_callback_count,
+    allsat_callback_store,
+)
 
 
 class MathSATTotalEnumerator(SMTEnumerator):
     """A wrapper for the mathsat T-solver"""
 
-    def __init__(self, computation_logger: Dict | None = None, project_on_theory_atoms: bool = True) -> None:
+    def __init__(
+        self,
+        computation_logger: dict | None = None,
+        project_on_theory_atoms: bool = True,
+    ) -> None:
         super().__init__(computation_logger)
         solver_options_dict = MSAT_TOTAL_ENUM_OPTIONS
         self._solver = Solver("msat", solver_options=solver_options_dict)
@@ -30,7 +38,7 @@ class MathSATTotalEnumerator(SMTEnumerator):
         self._models = []
         self._models_count = 0
 
-    def check_all_sat(self, phi: FNode, atoms: List[FNode] | None = None, store_models: bool = False) -> bool:
+    def check_all_sat(self, phi: FNode, atoms: list[FNode] | None = None, store_models: bool = False) -> bool:
         self.check_supports(phi)
         self.reset()
 
@@ -45,7 +53,7 @@ class MathSATTotalEnumerator(SMTEnumerator):
             mathsat.msat_all_sat(
                 self._solver.msat_env(),
                 self.get_converted_atoms(atoms),
-                callback=lambda model: _allsat_callback_store(model, self._converter, self._models),
+                callback=lambda model: allsat_callback_store(model, self._converter, self._models),
             )
             self._models_count = len(self._models)
         else:
@@ -53,7 +61,7 @@ class MathSATTotalEnumerator(SMTEnumerator):
             mathsat.msat_all_sat(
                 self._solver.msat_env(),
                 self.get_converted_atoms(atoms),
-                callback=lambda _: _allsat_callback_count(models_count_l),
+                callback=lambda _: allsat_callback_count(models_count_l),
             )
             self._models_count = models_count_l[0]
 
@@ -67,11 +75,11 @@ class MathSATTotalEnumerator(SMTEnumerator):
 
         return SAT
 
-    def get_theory_lemmas(self) -> List[FNode]:
+    def get_theory_lemmas(self) -> list[FNode]:
         """Returns the theory lemmas found during the All-SAT computation"""
         return self._tlemmas
 
-    def get_models(self) -> list:
+    def get_models(self) -> list[list[FNode]]:
         """Returns the models found during the All-SAT computation"""
         return self._models
 
@@ -83,13 +91,13 @@ class MathSATTotalEnumerator(SMTEnumerator):
         """Returns the converter used for the normalization of T-atoms"""
         return self._converter
 
-    def get_converted_atoms(self, atoms: Iterable[FNode]) -> List[FNode]:
+    def get_converted_atoms(self, atoms: Iterable[FNode]) -> list[FNode]:
         """Returns a list of normalized atoms
 
         Args:
             atoms (Iterable[FNode]): a list of pysmt atoms
 
         Returns:
-            List[FNode]: a list of normalized atoms
+            list[FNode]: a list of normalized atoms
         """
         return [self._converter.convert(a) for a in atoms]
