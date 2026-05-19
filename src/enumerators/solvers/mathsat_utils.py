@@ -67,18 +67,20 @@ EncodedClause: TypeAlias = tuple[list[int], list[str]]
 
 
 class AtomManager:
-    """Maps atoms to signed indices, with string fallback for unknown atoms.
+    """Maps literals to signed indices, with string fallback for unknown atoms.
 
-    Built once from a known atom list and a converter.  The converter is used
-    to normalize atoms so that lookups match whatever MathSAT produces via
-    converter.back() on the same solver instance.
+    The manager is built from the provided atom list and the index of each atom
+    in the list is used to compute its  literals' indexes.
+
+    Literals whose atoms are not present in the known atom list are encoded via
+    SMT-LIB serialization and decoded by parsing them back when needed.
     """
 
     def __init__(self, atoms: list[FNode], env: Environment | None = None):
         self.env = get_env() if env is None else env
         self._idx_to_atom = atoms
         self._atom_to_idx: dict[FNode, int] = {a: i for i, a in enumerate(atoms)}
-        self._parser = SmtLibParser()
+        self._parser = SmtLibParser(self.env)
 
     @property
     def mgr(self) -> FormulaManager:

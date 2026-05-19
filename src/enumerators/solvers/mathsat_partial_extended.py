@@ -66,7 +66,7 @@ def _parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[En
     """Worker function for parallel all-smt extension
 
     Args:
-        args: tuple of [TODO]
+        args: model as list of literal indexes
 
     Returns:
         tuple of local_models, local_model_count, total_lemmas string
