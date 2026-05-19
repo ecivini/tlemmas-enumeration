@@ -42,7 +42,7 @@ def get_normalized(phi: FNode, converter) -> FNode:
     if not isinstance(phi, FNode):
         raise TypeError("Expected FNode found " + str(type(phi)))
     walker = NormalizerWalker(converter)
-    return walker.walk(phi)
+    return walker.normalize(phi)
 
 
 def get_theory_atoms(atoms: Collection[FNode]) -> list[FNode]:

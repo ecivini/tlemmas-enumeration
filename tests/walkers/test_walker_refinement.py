@@ -23,7 +23,7 @@ def test_boolean_abstraction_and_refinement_round_trip():
     phi_atoms: set[FNode] = phi.get_atoms()
 
     abstr_walker = BooleanAbstractionWalker()
-    abstr_phi: FNode = abstr_walker.walk(phi)
+    abstr_phi: FNode = abstr_walker.abstract(phi)
     abstraction = abstr_walker.abstraction
 
     abstr_phi_atoms: set[FNode] = abstr_phi.get_atoms()
@@ -34,6 +34,6 @@ def test_boolean_abstraction_and_refinement_round_trip():
     assert all(atom in abstr_phi_atoms for atom in phi_atoms if atom.is_symbol(BOOL))
 
     refinement_walker = RefinementWalker(abstraction=abstraction)
-    refined_phi = refinement_walker.walk(abstr_phi)
+    refined_phi = refinement_walker.refine(abstr_phi)
 
     assert phi == refined_phi, "Refinement should recover the original formula"

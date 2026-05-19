@@ -4,6 +4,8 @@ from pysmt.walkers import DagWalker, handles
 import pysmt.operators as op
 from pysmt.fnode import FNode
 
+from enumerators.util.pysmt import SuspendTypeChecking
+
 
 class RefinementWalker(DagWalker):
     """A walker that converts an abstracted formula into its refinement"""
@@ -41,3 +43,7 @@ class RefinementWalker(DagWalker):
     def walk_bool_op(self, formula: FNode, args: tuple[FNode], **kwargs) -> FNode:
         # Boolean connectives just connect normalized children
         return self.mgr.create_node(formula.node_type(), tuple(args))
+
+    def refine(self, formula: FNode) -> FNode:
+        with SuspendTypeChecking(self.env):
+            return self.walk(formula)

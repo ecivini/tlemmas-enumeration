@@ -8,6 +8,7 @@ from pysmt.shortcuts import And
 
 from enumerators.formula import get_theory_atoms
 from enumerators.solvers.solver import SMTEnumerator
+from enumerators.util.pysmt import SuspendTypeChecking
 from enumerators.walkers.and_flattener import AndFlattener
 
 
@@ -82,7 +83,8 @@ def get_partition_relevant_formula_and_lemmas(
     n_touched, n_components = len(touched_components), len(component_to_atoms)
     print(f"Touched components: {n_touched}/{n_components}")
 
-    psi = And(*touched_components) if touched_components else And()
+    with SuspendTypeChecking():
+        psi = And(*touched_components) if touched_components else And()
     if n_touched == n_components:
         return psi, tlemmas
 
@@ -148,7 +150,9 @@ class WithPartitioningWrapper(SMTEnumerator):
                     part_atoms,
                     self._tlemmas,
                 )
-            result = self._base_solver.check_all_sat(And(psi, *relevant_lemmas), list(part_atoms), store_models)
+            with SuspendTypeChecking():
+                psi = And(psi, *relevant_lemmas)
+            result = self._base_solver.check_all_sat(psi, list(part_atoms), store_models)
             if not result:
                 overall_result = False
             self._tlemmas.extend(self._base_solver.get_theory_lemmas())
