@@ -25,10 +25,10 @@ def test_normalizer_walker(converter):
     x_ge_2_equiv = LE(Real(4), Times(Real(2), x))
 
     norm_walker = NormalizerWalker(converter)
-    x_le_y_norm = norm_walker.walk(x_le_y)
-    assert x_le_y_norm == norm_walker.walk(x_le_y_equiv)
-    x_ge_2_norm = norm_walker.walk(x_ge_2)
-    assert x_ge_2_norm == norm_walker.walk(x_ge_2_equiv)
+    x_le_y_norm = norm_walker.normalize(x_le_y)
+    assert x_le_y_norm == norm_walker.normalize(x_le_y_equiv)
+    x_ge_2_norm = norm_walker.normalize(x_ge_2)
+    assert x_ge_2_norm == norm_walker.normalize(x_ge_2_equiv)
 
     phi: FNode = And(
         flag,
@@ -40,7 +40,7 @@ def test_normalizer_walker(converter):
         x_ge_2_equiv,
     )
 
-    normal = norm_walker.walk(phi)
+    normal = norm_walker.normalize(phi)
 
     assert normal == phi.substitute(
         {

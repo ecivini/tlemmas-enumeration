@@ -16,7 +16,7 @@ def test_bool_abstraction_walker():
     formula = And(or_1, or_2)
 
     walker = BooleanAbstractionWalker()
-    abstracted_formula = walker.walk(formula)
+    abstracted_formula = walker.abstract(formula)
 
     assert len(walker.abstraction) == 6, "There should be 6 abstracted atoms"
 

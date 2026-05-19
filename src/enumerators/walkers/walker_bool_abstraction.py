@@ -5,6 +5,8 @@ from pysmt.formula import FormulaManager
 from pysmt.typing import BOOL
 from pysmt.walkers import DagWalker, handles
 
+from enumerators.util.pysmt import SuspendTypeChecking
+
 
 class BooleanAbstractionWalker(DagWalker):
     """A walker to normalize smt formulas into its boolean abstraction"""
@@ -47,3 +49,7 @@ class BooleanAbstractionWalker(DagWalker):
     def walk_bool_op(self, formula: FNode, args: tuple[FNode], **kwargs) -> FNode:
         # Boolean connectives just connect normalized children
         return self.mgr.create_node(formula.node_type(), tuple(args))
+
+    def abstract(self, formula: FNode) -> FNode:
+        with SuspendTypeChecking():
+            return self.walk(formula)

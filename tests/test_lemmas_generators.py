@@ -1,7 +1,7 @@
 import multiprocessing
 import pathlib
 from dataclasses import dataclass
-from typing import Callable, Iterable
+from typing import Callable
 
 import pytest
 from pysmt.fnode import FNode
@@ -199,7 +199,7 @@ def example(request, all_vars) -> tuple[FNode, int, int, int]:
     return formula, test_case.model_count, test_case.projected_model_count, test_case.partitions_model_count
 
 
-def assert_models_are_tsat(phi: FNode, models: list[Iterable[FNode]]) -> None:
+def assert_models_are_tsat(phi: FNode, models: list[list[FNode]]) -> None:
     with Solver() as check_solver:
         check_solver.add_assertion(phi)
         for model in models:
@@ -252,8 +252,8 @@ def test_lemmas_correctness(example, solver_info):
     phi_and_lemmas_atoms = phi_and_lemmas.get_atoms()
     assert set(phi_atoms) <= phi_and_lemmas_atoms
     bool_walker = BooleanAbstractionWalker(atoms=phi_and_lemmas_atoms)
-    phi_and_lemmas_abstr = bool_walker.walk(phi_and_lemmas)
-    phi_abstr = bool_walker.walk(phi)
+    phi_and_lemmas_abstr = bool_walker.abstract(phi_and_lemmas)
+    phi_abstr = bool_walker.abstract(phi)
     assert len(phi_abstr.get_atoms()) == len(phi_atoms), "Abstraction should preserve atoms of phi"
 
     # NOTE: Some lemmas introduce fresh Skolem variables, which should be existentially quantified for the lemma to
@@ -278,7 +278,7 @@ def test_lemmas_correctness(example, solver_info):
 
     # Check phi_and_lemmas is t-reduced
     refinement_walker = RefinementWalker(abstraction=bool_walker.abstraction)
-    refined_models = [[refinement_walker.walk(lit) for lit in model] for model in solver_abstr.get_models()]
+    refined_models = [[refinement_walker.refine(lit) for lit in model] for model in solver_abstr.get_models()]
     assert_models_are_tsat(phi, refined_models)
 
 
