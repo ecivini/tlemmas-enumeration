@@ -51,5 +51,5 @@ class BooleanAbstractionWalker(DagWalker):
         return self.mgr.create_node(formula.node_type(), tuple(args))
 
     def abstract(self, formula: FNode) -> FNode:
-        with SuspendTypeChecking():
+        with SuspendTypeChecking(self.env):
             return self.walk(formula)

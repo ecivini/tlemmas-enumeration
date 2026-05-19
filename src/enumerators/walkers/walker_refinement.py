@@ -45,5 +45,5 @@ class RefinementWalker(DagWalker):
         return self.mgr.create_node(formula.node_type(), tuple(args))
 
     def refine(self, formula: FNode) -> FNode:
-        with SuspendTypeChecking():
+        with SuspendTypeChecking(self.env):
             return self.walk(formula)
