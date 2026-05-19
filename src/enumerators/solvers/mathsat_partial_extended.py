@@ -28,7 +28,7 @@ from .mathsat_utils import (
 
 
 _ATOM_MANAGER: AtomManager | None = None
-_MSAT_ATOMS = []
+_MSAT_PROJ_ATOMS = []
 
 _SOLVER: MathSAT5Solver | None = None
 _STORE_MODELS: bool = False
@@ -36,12 +36,13 @@ _STORE_MODELS: bool = False
 
 def _initialize_worker(
     phi: FNode,
-    proj_atoms: list[FNode],
+    all_atoms: list[FNode],
+    proj_atoms: list[int],
     tlemmas: list[tuple[list[int], list[str]]],
     solver_options: dict[str, str],
     store_models: bool,
 ) -> None:
-    global _ATOM_MANAGER, _MSAT_ATOMS, _SOLVER, _STORE_MODELS
+    global _ATOM_MANAGER, _MSAT_PROJ_ATOMS, _SOLVER, _STORE_MODELS
     _STORE_MODELS = store_models
     env: Environment = get_env()
 
@@ -51,9 +52,9 @@ def _initialize_worker(
     contextualizer = FormulaContextualizer()
     normalizer = NormalizerWalker(converter)
 
-    atoms = [normalizer.normalize(contextualizer.walk(atom)) for atom in proj_atoms]
-    _ATOM_MANAGER = AtomManager(atoms, env)
-    _MSAT_ATOMS = [converter.convert(atom) for atom in atoms]
+    all_atoms = [normalizer.normalize(contextualizer.walk(atom)) for atom in all_atoms]
+    _ATOM_MANAGER = AtomManager(all_atoms, env)
+    _MSAT_PROJ_ATOMS = [converter.convert(_ATOM_MANAGER.decode_literal(atom)) for atom in proj_atoms]
 
     phi = contextualizer.walk(phi)
     _SOLVER.add_assertion(phi)
@@ -70,7 +71,7 @@ def _parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[En
     Returns:
         tuple of local_models, local_model_count, total_lemmas string
     """
-    global _ATOM_MANAGER, _MSAT_ATOMS, _SOLVER, _STORE_MODELS
+    global _ATOM_MANAGER, _MSAT_PROJ_ATOMS, _SOLVER, _STORE_MODELS
 
     solver = cast(MathSAT5Solver, _SOLVER)
     assert solver is not None
@@ -88,7 +89,7 @@ def _parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[En
         pysmt_models = []
         mathsat.msat_all_sat(
             solver.msat_env(),
-            _MSAT_ATOMS,
+            _MSAT_PROJ_ATOMS,
             callback=lambda model: allsat_callback_store(model, converter, pysmt_models),
         )
         found_models = [atom_manager.encode_model(model) for model in pysmt_models]
@@ -97,7 +98,7 @@ def _parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[En
         models_count_l = [0]
         mathsat.msat_all_sat(
             solver.msat_env(),
-            _MSAT_ATOMS,
+            _MSAT_PROJ_ATOMS,
             callback=lambda _: allsat_callback_count(models_count_l),
         )
         found_models_count = models_count_l[0]
@@ -297,7 +298,11 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
 
         else:
             # Use a process pool to maintain constant number of workers
-            atom_manager = AtomManager(atoms)
+            all_atoms = list(
+                phi.get_atoms() | set(atoms) | {atom for lemma in self._tlemmas for atom in lemma.get_atoms()}
+            )
+            atom_manager = AtomManager(all_atoms)
+            proj_atoms = [atom_manager.encode_literal(atom) for atom in atoms]
             enc_partial_models = [atom_manager.encode_model(model) for model in partial_models]
             enc_tlemmas = [atom_manager.encode_clause(lemma) for lemma in self._tlemmas]
             new_tlemmas = []
@@ -306,7 +311,8 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
                 initializer=_initialize_worker,
                 initargs=(
                     phi,
-                    atoms,
+                    all_atoms,
+                    proj_atoms,
                     enc_tlemmas,
                     MSAT_TOTAL_ENUM_OPTIONS,
                     store_models,
