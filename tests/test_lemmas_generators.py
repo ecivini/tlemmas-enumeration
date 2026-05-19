@@ -64,7 +64,7 @@ def all_vars(bool_vars, real_vars, int_vars, bv_vars, array_vars) -> dict[str, F
 
 
 ALL_RAW_TEST_CASES = [
-    TCase("Bool only", lambda s: (s["A"] | s["B"]) & (~s["A"] | ~s["B"]), 2, 2, 0),
+    TCase("Bool only", lambda s: (s["A"] | s["B"]) & (~s["A"] | ~s["B"]), 2, 0, 0),
     TCase("Eq unsat", lambda s: s["x"].Equals(s["y"]) & s["x"].Equals(s["z"]) & ~s["y"].Equals(s["z"]), 0, 0, 0),
     TCase("LRA unsat", lambda s: (s["x"] <= 0) & (s["x"] >= 1), 0, 0, 0),
     TCase("LRA unsat eq", lambda s: s["x"].Equals(0) & (s["x"] + 1).Equals(0), 0, 0, 0),
@@ -227,8 +227,8 @@ def test_lemmas_correctness(example, solver_info):
     phi, mc, pmc, pamc = example
     solver, is_projected, is_partitioner = solver_info
 
-    normalize_solver = Solver("msat")
-    phi = get_normalized(phi, normalize_solver.converter)
+    converter = solver.get_converter()
+    phi = get_normalized(phi, converter)
     expected_models_count = mc
     expected_lemmas_models_count = mc
     if is_projected:
@@ -246,7 +246,7 @@ def test_lemmas_correctness(example, solver_info):
     assert_models_are_tsat(phi, solver.get_models())
 
     # ---- Build Boolean abstraction of phi & lemmas ----
-    lemmas = [get_normalized(lemma, normalize_solver.converter) for lemma in solver.get_theory_lemmas()]
+    lemmas = [get_normalized(lemma, converter) for lemma in solver.get_theory_lemmas()]
 
     phi_and_lemmas = And(phi, And(lemmas))
     phi_and_lemmas_atoms = phi_and_lemmas.get_atoms()

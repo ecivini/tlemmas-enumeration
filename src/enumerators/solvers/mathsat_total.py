@@ -45,6 +45,8 @@ class MathSATTotalEnumerator(SMTEnumerator):
         atoms = phi.get_atoms() if atoms is None else atoms
         if self._project_on_theory_atoms:
             atoms = get_theory_atoms(atoms)
+        if not atoms:
+            return self._solver.is_sat(phi)
         self.atoms = atoms
 
         self._solver.add_assertion(phi)
