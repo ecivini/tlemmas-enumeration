@@ -102,11 +102,15 @@ class AtomManager:
 
     def encode_clause(self, clause: FNode) -> EncodedClause:
         """T-lemmas may contain unknown atoms; splits into known indices and new strings."""
-        lits = clause.args() if clause.is_or() else (clause,)
+        lits = list(clause.args()) if clause.is_or() else [clause]
         known, new = [], []
-        for lit in lits:
-            enc = self.encode_literal(lit)
-            (known if isinstance(enc, int) else new).append(enc)
+        while lits:
+            lit = lits.pop()
+            if lit.is_or():
+                lits.extend(lit.args())
+            else:
+                enc = self.encode_literal(lit)
+                (known if isinstance(enc, int) else new).append(enc)
         return known, new
 
     def decode_literal(self, val: int | str) -> FNode:
