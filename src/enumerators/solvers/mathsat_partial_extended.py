@@ -6,124 +6,117 @@ from typing import Protocol, cast
 
 import mathsat
 from allsat_cnf.polarity_cnfizer import PolarityCNFizer
+from pysmt.environment import Environment
 from pysmt.fnode import FNode
 from pysmt.formula import FormulaContextualizer
-from pysmt.shortcuts import And, Solver
+from pysmt.shortcuts import Solver, get_env
 from pysmt.solvers.msat import MathSAT5Solver
 
 from enumerators.constants import SAT, UNSAT
 from enumerators.formula import get_theory_atoms
 from enumerators.solvers.solver import SMTEnumerator
-from enumerators.util.collections import Nested, map_nested
-from enumerators.util.pysmt import SuspendTypeChecking
+from enumerators.walkers.normalizer import NormalizerWalker
 from .mathsat_utils import (
     MSAT_PARTIAL_ENUM_OPTIONS,
     MSAT_TOTAL_ENUM_OPTIONS,
+    AtomManager,
+    EncodedClause,
+    EncodedModel,
     allsat_callback_count,
     allsat_callback_store,
 )
 
 
-def _contextualize(contextualizer: FormulaContextualizer, formulas: Nested[FNode]) -> Nested[FNode]:
-    """Contextualizes a collection of formulas using the provided contextualizer
+_ATOM_MANAGER: AtomManager | None = None
+_MSAT_PROJ_ATOMS = []
 
-    Args:
-        contextualizer: the FormulaContextualizer to use
-        formulas: collection of formulas to contextualize
-
-    Returns:
-        the contextualized formulas
-    """
-    with SuspendTypeChecking():
-        return map_nested(lambda f: contextualizer.walk(f), formulas)
-
-
-_PARTIAL_MODELS = []
-_TLEMMAS = []
-_PHI = None
-_PHI_ATOMS = []
 _SOLVER: MathSAT5Solver | None = None
+_STORE_MODELS: bool = False
 
 
 def _initialize_worker(
-    partial_models: list[list[FNode]],
     phi: FNode,
-    phi_atoms: list[FNode],
-    tlemmas: list[FNode],
-    solver_options: dict,
+    all_atoms: list[FNode],
+    proj_atoms: list[int],
+    tlemmas: list[tuple[list[int], list[str]]],
+    solver_options: dict[str, str],
+    store_models: bool,
 ) -> None:
-    global _PARTIAL_MODELS, _PHI, _TLEMMAS, _SOLVER, _PHI_ATOMS
+    global _ATOM_MANAGER, _MSAT_PROJ_ATOMS, _SOLVER, _STORE_MODELS
+    _STORE_MODELS = store_models
+    env: Environment = get_env()
+
+    _SOLVER = cast(MathSAT5Solver, env.factory.Solver("msat", solver_options=solver_options))
+    converter = _SOLVER.converter
 
     contextualizer = FormulaContextualizer()
+    normalizer = NormalizerWalker(converter)
 
-    _PARTIAL_MODELS = partial_models
-    _TLEMMAS = _contextualize(contextualizer, tlemmas)
-    _PHI = _contextualize(contextualizer, phi)
+    all_atoms = [normalizer.normalize(contextualizer.walk(atom)) for atom in all_atoms]
+    _ATOM_MANAGER = AtomManager(all_atoms, env)
+    _MSAT_PROJ_ATOMS = [converter.convert(_ATOM_MANAGER.decode_literal(atom)) for atom in proj_atoms]
 
-    _SOLVER = cast(MathSAT5Solver, Solver("msat", solver_options=solver_options))
-
-    _PHI_ATOMS = _contextualize(contextualizer, phi_atoms)
-    _PHI_ATOMS = [_SOLVER.converter.convert(a) for a in _PHI_ATOMS]
-
-    _SOLVER.add_assertion(_PHI)
-    _SOLVER.add_assertion(And(_TLEMMAS))
+    phi = contextualizer.walk(phi)
+    _SOLVER.add_assertion(phi)
+    for encoded_tlemma in tlemmas:
+        _SOLVER.add_assertion(_ATOM_MANAGER.decode_clause(encoded_tlemma))
 
 
-def _parallel_worker(args: tuple) -> tuple[list[list[FNode]], int, list[FNode]]:
+def _parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[EncodedClause]]:
     """Worker function for parallel all-smt extension
 
     Args:
-        args: tuple of (partial_model, phi, atoms, solver_options_dict_total, tlemmas)
+        args: model as list of literal indexes
 
     Returns:
-        tuple of local_models, total_lemmas
+        tuple of local_models, local_model_count, total_lemmas string
     """
-    global _SOLVER, _TLEMMAS, _PHI, _PHI_ATOMS, _PARTIAL_MODELS
+    global _ATOM_MANAGER, _MSAT_PROJ_ATOMS, _SOLVER, _STORE_MODELS
 
-    model_id, store_models = args
+    solver = cast(MathSAT5Solver, _SOLVER)
+    assert solver is not None
+    converter = solver.converter
+    solver.push()
 
-    local_solver = cast(MathSAT5Solver, _SOLVER)
-    local_converter = local_solver.converter
+    atom_manager = cast(AtomManager, _ATOM_MANAGER)
+    assert atom_manager is not None
 
-    contextualizer = FormulaContextualizer()
-    converted_atoms = _PHI_ATOMS
+    solver.add_assertions(atom_manager.decode_model(model))
 
-    model = _PARTIAL_MODELS[model_id]
-
-    local_solver.push()
-
-    model = _contextualize(contextualizer, model)
-    local_solver.add_assertions(model)
-
-    found_models = []
+    found_models: list[list[int]] = []
     found_models_count = 0
-    if store_models:
+    if _STORE_MODELS:
+        pysmt_models = []
         mathsat.msat_all_sat(
-            local_solver.msat_env(),
-            converted_atoms,
-            callback=lambda model: allsat_callback_store(model, local_converter, found_models),
+            solver.msat_env(),
+            _MSAT_PROJ_ATOMS,
+            callback=lambda model: allsat_callback_store(model, converter, pysmt_models),
         )
+        found_models = [atom_manager.encode_model(model) for model in pysmt_models]
         found_models_count = len(found_models)
     else:
         models_count_l = [0]
         mathsat.msat_all_sat(
-            local_solver.msat_env(),
-            converted_atoms,
+            solver.msat_env(),
+            _MSAT_PROJ_ATOMS,
             callback=lambda _: allsat_callback_count(models_count_l),
         )
         found_models_count = models_count_l[0]
 
-    found_tlemmas = [local_converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(local_solver.msat_env())]
+    pysmt_tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(solver.msat_env())]
 
-    local_solver.pop()
-    local_solver.add_assertion(And(found_tlemmas))
+    solver.pop()
+    # solver.add_assertions(found_tlemmas)
+    found_tlemmas = [atom_manager.encode_clause(lemma) for lemma in pysmt_tlemmas]
 
     return found_models, found_models_count, found_tlemmas
 
 
 class DivideStrategy(Protocol):
     @classmethod
-    def divide(cls, phi: FNode, atoms: list[FNode], n_workers: int) -> tuple[list[list[FNode]], list[FNode]]:
+    def divide(
+        cls, phi: FNode, atoms: list[FNode], n_workers: int, norm: NormalizerWalker
+    ) -> tuple[list[list[FNode]], list[FNode]]:
         """
         Partitions the search space of phi into disjoint T-SAT partial assignments.
 
@@ -131,6 +124,7 @@ class DivideStrategy(Protocol):
             phi: the formula to divide
             atoms: the atoms to consider for the division (e.g., theory atoms)
             n_workers: the number of workers that will solve the resulting partial assignments in parallel
+            norm: normalizer used to normalize returned models and lemmas
         Returns:
             a list of partial assignments covering the search space of phi
             a list of theory lemmas found during the division
@@ -140,7 +134,9 @@ class DivideStrategy(Protocol):
 
 class DivideByPartialAllSMTStrategy(DivideStrategy):
     @classmethod
-    def divide(cls, phi: FNode, atoms: list[FNode], n_workers: int) -> tuple[list[list[FNode]], list[FNode]]:
+    def divide(
+        cls, phi: FNode, atoms: list[FNode], n_workers: int, norm: NormalizerWalker
+    ) -> tuple[list[list[FNode]], list[FNode]]:
         phi = PolarityCNFizer(nnf=True, mutex_nnf_labels=True).convert_as_formula(phi)
         partial_models = []
         with Solver("msat", solver_options=MSAT_PARTIAL_ENUM_OPTIONS) as solver:
@@ -153,14 +149,16 @@ class DivideByPartialAllSMTStrategy(DivideStrategy):
                 callback=lambda model: allsat_callback_store(model, converter, partial_models),
             )
 
-            tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
+            tlemmas = [norm.normalize(converter.back(lemma)) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
+            partial_models = [[norm.normalize(literal) for literal in model] for model in partial_models]
+
         return partial_models, tlemmas
 
 
 class DivideByProjectedEnumerationStrategy(DivideStrategy):
     @classmethod
     def divide(
-        cls, phi: FNode, atoms, n_workers: int, min_partial_models: int = 0
+        cls, phi: FNode, atoms, n_workers: int, norm: NormalizerWalker, min_partial_models: int = 0
     ) -> tuple[list[list[FNode]], list[FNode]]:
         if min_partial_models <= 0:
             min_partial_models = n_workers * 100
@@ -185,6 +183,8 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
                 )
                 tlemmas.extend([converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)])
                 solver.pop()
+        tlemmas = [norm.normalize(lemma) for lemma in tlemmas]
+        partial_models = [[norm.normalize(literal) for literal in model] for model in partial_models]
 
         return partial_models, tlemmas
 
@@ -222,7 +222,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
         super().__init__(computation_logger=computation_logger)
         if parallel_procs < 1 or parallel_procs > multiprocessing.cpu_count():
             raise ValueError("parallel_procs must be between 1 and the number of CPU cores")
-        self.solver_total = Solver("msat", solver_options=MSAT_TOTAL_ENUM_OPTIONS)
+        self.solver_total: MathSAT5Solver = Solver("msat", solver_options=MSAT_TOTAL_ENUM_OPTIONS)
         self.reset()
         self._converter_total = self.solver_total.converter
         self._project_on_theory_atoms = project_on_theory_atoms
@@ -239,13 +239,17 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
         self.check_supports(phi)
         self.reset()
 
-        atoms = phi.get_atoms() if atoms is None else atoms
+        atoms = list(phi.get_atoms()) if atoms is None else atoms
         if self._project_on_theory_atoms:
             atoms = get_theory_atoms(atoms)
+        if not atoms:
+            return self.solver_total.is_sat(phi)
+
         self.atoms = atoms
 
         start_time = time.time()
-        partial_models, tlemmas = self._divide_strategy.divide(phi, atoms, self._parallel_procs)
+        normalizer = NormalizerWalker(self.get_converter())
+        partial_models, tlemmas = self._divide_strategy.divide(phi, atoms, self._parallel_procs, normalizer)
         self._tlemmas = tlemmas
         end_time = time.time()
         if self._computation_logger is not None:
@@ -265,14 +269,14 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
                 self.solver_total.add_assertions(m)
 
                 if store_models:
-                    models = []
+                    worker_enc_models = []
                     mathsat.msat_all_sat(
                         self.solver_total.msat_env(),
                         converted_atoms,
-                        callback=lambda model: allsat_callback_store(model, self._converter_total, models),
+                        callback=lambda model: allsat_callback_store(model, self._converter_total, worker_enc_models),
                     )
-                    self._models_count += len(models)
-                    self._models.extend(models)
+                    self._models_count += len(worker_enc_models)
+                    self._models.extend(worker_enc_models)
                 else:
                     models_count_l = [0]
                     mathsat.msat_all_sat(
@@ -290,32 +294,43 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
                 self._tlemmas += tlemmas_total
                 self.solver_total.pop()
 
-                self.solver_total.add_assertion(And(tlemmas_total))
+                self.solver_total.add_assertions(tlemmas_total)
 
         else:
-            # Prepare arguments for each worker
-            worker_args = [(i, store_models) for i in range(len(partial_models))]
-
             # Use a process pool to maintain constant number of workers
+            all_atoms = list(
+                phi.get_atoms() | set(atoms) | {atom for lemma in self._tlemmas for atom in lemma.get_atoms()}
+            )
+            atom_manager = AtomManager(all_atoms)
+            proj_atoms = [atom_manager.encode_literal(atom) for atom in atoms]
+            enc_partial_models = [atom_manager.encode_model(model) for model in partial_models]
+            enc_tlemmas = [atom_manager.encode_clause(lemma) for lemma in self._tlemmas]
             new_tlemmas = []
             pool = multiprocessing.Pool(
                 processes=self._parallel_procs,
                 initializer=_initialize_worker,
                 initargs=(
-                    partial_models,
                     phi,
-                    atoms,
-                    self._tlemmas,
+                    all_atoms,
+                    proj_atoms,
+                    enc_tlemmas,
                     MSAT_TOTAL_ENUM_OPTIONS,
+                    store_models,
                 ),
             )
             with pool:
                 # Use imap_unordered to process results as they complete
-                for models, models_count, lemmas_batch in pool.imap_unordered(_parallel_worker, worker_args):
-                    contextualizer = FormulaContextualizer()
-                    self._models.extend(_contextualize(contextualizer, models))
-                    new_tlemmas.extend(_contextualize(contextualizer, lemmas_batch))
-                    self._models_count += models_count
+                total_deserialization_time = 0.0
+                for worker_enc_models, work_model_count, worker_enc_tlemmas in pool.imap_unordered(
+                    _parallel_worker, enc_partial_models
+                ):
+                    start_time = time.time()
+                    self._models.extend([atom_manager.decode_model(model) for model in worker_enc_models])
+                    new_tlemmas.extend([atom_manager.decode_clause(lemma) for lemma in worker_enc_tlemmas])
+                    total_deserialization_time += time.time() - start_time
+                    self._models_count += work_model_count
+                if self._computation_logger is not None:
+                    self._computation_logger["Total deserialization time"] = total_deserialization_time
 
             self._tlemmas.extend(new_tlemmas)
 
