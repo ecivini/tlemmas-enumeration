@@ -1,25 +1,12 @@
 from pysmt.fnode import FNode
-from pysmt.shortcuts import And, Equals, Or, Real, Symbol
-from pysmt.typing import BOOL, REAL
+from pysmt.typing import BOOL
 
 from enumerators.walkers.walker_bool_abstraction import BooleanAbstractionWalker
 from enumerators.walkers.walker_refinement import RefinementWalker
 
 
-def test_boolean_abstraction_and_refinement_round_trip():
-    ten = Real(10)
-    zero = Real(0)
-    a = Symbol("a", REAL)
-    b = Symbol("b", REAL)
-    c = Symbol("C", BOOL)
-
-    phi = Or(
-        c,
-        And(
-            Or(Equals(a, ten), Equals(b, zero)),
-            Equals(a, zero),
-        ),
-    )
+def test_boolean_abstraction_and_refinement_round_trip(x, y, a):
+    phi = a | (x.Equals(10) | y.Equals(0)) & x.Equals(0)
     phi_atoms: set[FNode] = phi.get_atoms()
 
     abstr_walker = BooleanAbstractionWalker()

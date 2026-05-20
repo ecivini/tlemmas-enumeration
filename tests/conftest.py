@@ -1,4 +1,5 @@
 import pysmt.environment
+from pysmt.fnode import FNode
 import pytest
 from pysmt.shortcuts import REAL, Symbol
 from pysmt.typing import ArrayType, BOOL, INT, BV8
@@ -67,22 +68,22 @@ def solver_info(wsolver) -> tuple[SMTEnumerator, bool, bool]:
 
 # ---- Real variables ----
 @pytest.fixture
-def w():
+def w() -> FNode:
     return Symbol("w", REAL)
 
 
 @pytest.fixture
-def x():
+def x() -> FNode:
     return Symbol("x", REAL)
 
 
 @pytest.fixture
-def y():
+def y() -> FNode:
     return Symbol("y", REAL)
 
 
 @pytest.fixture
-def z():
+def z() -> FNode:
     return Symbol("z", REAL)
 
 
@@ -90,17 +91,17 @@ def z():
 
 
 @pytest.fixture
-def i():
+def i() -> FNode:
     return Symbol("i", INT)
 
 
 @pytest.fixture
-def j():
+def j() -> FNode:
     return Symbol("j", INT)
 
 
 @pytest.fixture
-def k():
+def k() -> FNode:
     return Symbol("k", INT)
 
 
@@ -108,23 +109,28 @@ def k():
 
 
 @pytest.fixture
-def a():
+def a() -> FNode:
     return Symbol("a", BOOL)
 
 
 @pytest.fixture
-def b():
+def b() -> FNode:
     return Symbol("b", BOOL)
+
+
+@pytest.fixture
+def c() -> FNode:
+    return Symbol("c", BOOL)
 
 
 # ---- BV variables ----
 @pytest.fixture
-def bv1():
+def bv1() -> FNode:
     return Symbol("bv1", BV8)
 
 
 @pytest.fixture
-def bv2():
+def bv2() -> FNode:
     return Symbol("bv2", BV8)
 
 
@@ -132,13 +138,49 @@ def bv2():
 
 
 @pytest.fixture
-def array1():
+def array1() -> FNode:
     return Symbol("arr1", ArrayType(INT, INT))
 
 
 @pytest.fixture
-def array2():
+def array2() -> FNode:
     return Symbol("arr2", ArrayType(INT, INT))
+
+
+@pytest.fixture
+def bool_vars(a, b, c) -> dict[str, FNode]:
+    return {"A": a, "B": b, "C": c}
+
+
+@pytest.fixture
+def real_vars(w, x, y, z) -> dict[str, FNode]:
+    return {"x": x, "y": y, "z": z, "w": w}
+
+
+@pytest.fixture
+def int_vars(i, j, k) -> dict[str, FNode]:
+    return {"i": i, "j": j, "k": k}
+
+
+@pytest.fixture
+def bv_vars(bv1, bv2) -> dict[str, FNode]:
+    return {"bv1": bv1, "bv2": bv2}
+
+
+@pytest.fixture
+def array_vars(array1, array2) -> dict[str, FNode]:
+    return {"arr1": array1, "arr2": array2}
+
+
+@pytest.fixture
+def all_vars(bool_vars, real_vars, int_vars, bv_vars, array_vars) -> dict[str, FNode]:
+    all_vars = {}
+    all_vars.update(bool_vars)
+    all_vars.update(real_vars)
+    all_vars.update(int_vars)
+    all_vars.update(bv_vars)
+    all_vars.update(array_vars)
+    return all_vars
 
 
 @pytest.fixture
