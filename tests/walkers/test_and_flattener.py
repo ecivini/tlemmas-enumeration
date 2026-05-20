@@ -1,10 +1,13 @@
+from typing import Callable
 from pysmt.fnode import FNode
 from pysmt.shortcuts import is_valid, And
 
 from enumerators.walkers.and_flattener import AndFlattener
 import pytest
 
-TEST_CASES = [
+FormulaBuilder = Callable[[dict[str, FNode]], FNode]
+FormulasConjunctionBuilder = Callable[[dict[str, FNode]], frozenset[FNode]]
+TEST_CASES: list[tuple[FormulaBuilder, FormulasConjunctionBuilder]] = [
     (
         lambda s: s["A"] & (s["B"] & s["C"]),
         lambda s: frozenset([s["A"], s["B"], s["C"]]),
@@ -26,9 +29,13 @@ TEST_CASES = [
 
 
 @pytest.mark.parametrize("build_formula, build_expected", TEST_CASES)
-def test_and_flattener(build_formula, build_expected, all_vars):
-    formula: FNode = build_formula(all_vars)
-    expected: FNode = build_expected(all_vars)
+def test_and_flattener(
+    build_formula: FormulaBuilder,
+    build_expected: FormulasConjunctionBuilder,
+    all_vars: dict[str, FNode],
+) -> None:
+    formula = build_formula(all_vars)
+    expected = build_expected(all_vars)
     flattener = AndFlattener()
     result = flattener.flatten(formula)
     assert result == expected, f"Expected {expected}, got {result}"

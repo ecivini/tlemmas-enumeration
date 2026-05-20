@@ -37,7 +37,7 @@ SOLVERS = [
 
 
 @pytest.fixture(params=SOLVERS, ids=lambda s: s[0])
-def solver(request) -> SMTEnumerator:
+def solver(request: pytest.FixtureRequest) -> SMTEnumerator:
     _, solver_cls, params = request.param
     return solver_cls(**params)
 
@@ -46,7 +46,7 @@ def solver(request) -> SMTEnumerator:
     params=["raw", "partitioned", "partitioned-on-components"],
     ids=["mode:raw", "mode:part", "mode:part-comp"],
 )
-def wsolver(solver, request):
+def wsolver(solver: SMTEnumerator, request: pytest.FixtureRequest) -> SMTEnumerator:
     if request.param == "raw":
         return solver
     elif request.param == "partitioned":
@@ -58,7 +58,7 @@ def wsolver(solver, request):
 
 
 @pytest.fixture
-def solver_info(wsolver) -> tuple[SMTEnumerator, bool, bool]:
+def solver_info(wsolver: SMTEnumerator) -> tuple[SMTEnumerator, bool, bool]:
     return (
         wsolver,
         getattr(wsolver, "_project_on_theory_atoms", False),
@@ -148,32 +148,38 @@ def array2() -> FNode:
 
 
 @pytest.fixture
-def bool_vars(a, b, c) -> dict[str, FNode]:
+def bool_vars(a: FNode, b: FNode, c: FNode) -> dict[str, FNode]:
     return {"A": a, "B": b, "C": c}
 
 
 @pytest.fixture
-def real_vars(w, x, y, z) -> dict[str, FNode]:
+def real_vars(w: FNode, x: FNode, y: FNode, z: FNode) -> dict[str, FNode]:
     return {"x": x, "y": y, "z": z, "w": w}
 
 
 @pytest.fixture
-def int_vars(i, j, k) -> dict[str, FNode]:
+def int_vars(i: FNode, j: FNode, k: FNode) -> dict[str, FNode]:
     return {"i": i, "j": j, "k": k}
 
 
 @pytest.fixture
-def bv_vars(bv1, bv2) -> dict[str, FNode]:
+def bv_vars(bv1: FNode, bv2: FNode) -> dict[str, FNode]:
     return {"bv1": bv1, "bv2": bv2}
 
 
 @pytest.fixture
-def array_vars(array1, array2) -> dict[str, FNode]:
+def array_vars(array1: FNode, array2: FNode) -> dict[str, FNode]:
     return {"arr1": array1, "arr2": array2}
 
 
 @pytest.fixture
-def all_vars(bool_vars, real_vars, int_vars, bv_vars, array_vars) -> dict[str, FNode]:
+def all_vars(
+    bool_vars: dict[str, FNode],
+    real_vars: dict[str, FNode],
+    int_vars: dict[str, FNode],
+    bv_vars: dict[str, FNode],
+    array_vars: dict[str, FNode],
+) -> dict[str, FNode]:
     all_vars = {}
     all_vars.update(bool_vars)
     all_vars.update(real_vars)
@@ -184,37 +190,37 @@ def all_vars(bool_vars, real_vars, int_vars, bv_vars, array_vars) -> dict[str, F
 
 
 @pytest.fixture
-def sat_formula(x, y, z):
+def sat_formula(x: FNode, y: FNode, z: FNode) -> FNode:
     return (x < y) | (y < z) | (z < x) | x.Equals(5)
 
 
 @pytest.fixture
-def unsat_formula(x, y, z):
+def unsat_formula(x: FNode, y: FNode, z: FNode) -> FNode:
     return (x < y) & (y < z) & (z < x)
 
 
 @pytest.fixture
-def prop_unsat_formula(x, y):
+def prop_unsat_formula(x: FNode, y: FNode) -> FNode:
     return (x < y) & ~(x < y)
 
 
 @pytest.fixture
-def valid_formula(x):
+def valid_formula(x: FNode) -> FNode:
     return (x < 1) | ~(x < 0)
 
 
 @pytest.fixture
-def prop_valid_formula(x, y):
+def prop_valid_formula(x: FNode, y: FNode) -> FNode:
     return (x < y) | ~(x < y)
 
 
 @pytest.fixture
-def rangen_formula():
+def rangen_formula() -> FNode:
     """Rangen formula fixture"""
     return read_phi("./tests/items/rng.smt")
 
 
 @pytest.fixture(params=["sat_formula", "unsat_formula", "valid_formula", "rangen_formula"])
-def any_formula(request):
+def any_formula(request: pytest.FixtureRequest) -> FNode:
     """Return all formula fixtures one by one via parametrization"""
     return request.getfixturevalue(request.param)

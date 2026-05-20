@@ -1,3 +1,5 @@
+from typing import Generator
+from pysmt.solvers.msat import MSatConverter
 import pytest
 from allsat_cnf.utils import MathSAT5Solver
 from pysmt.fnode import FNode
@@ -7,13 +9,13 @@ from enumerators.walkers.normalizer import NormalizerWalker
 
 
 @pytest.fixture
-def converter():
+def converter() -> Generator[MSatConverter, None, None]:
     with Solver("msat") as msat:
         msat: MathSAT5Solver
         yield msat.converter
 
 
-def test_normalizer_walker(x, y, a, converter):
+def test_normalizer_walker(x: FNode, y: FNode, a: FNode, converter: MSatConverter) -> None:
     y_le_x = y <= x
     x_le_y = x <= y
     x_le_y_equiv = x + (-1 * y) <= 0

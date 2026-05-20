@@ -12,6 +12,7 @@ from pysmt.typing import INT
 from enumerators.formula import get_normalized, read_phi
 from enumerators.solvers.mathsat_partial_extended import MathSATExtendedPartialEnumerator
 from enumerators.solvers.mathsat_total import MathSATTotalEnumerator
+from enumerators.solvers.solver import SMTEnumerator
 from enumerators.walkers.walker_bool_abstraction import BooleanAbstractionWalker
 from enumerators.walkers.walker_refinement import RefinementWalker
 
@@ -150,7 +151,7 @@ ALL_RAW_TEST_CASES = [
 
 
 @pytest.fixture(params=ALL_RAW_TEST_CASES, ids=lambda tc: tc.name)
-def example(request, all_vars) -> tuple[FNode, int, int, int]:
+def example(request: pytest.FixtureRequest, all_vars: dict[str, FNode]) -> tuple[FNode, int, int, int]:
     """
     Note: formulas must be built in the current pysmt environment.
     This is ensured by building them inside this fixture.
@@ -171,7 +172,7 @@ def assert_models_are_tsat(phi: FNode, models: list[list[FNode]]) -> None:
             check_solver.pop()
 
 
-def assert_lemmas_are_tvalid(lemmas: list[FNode]):
+def assert_lemmas_are_tvalid(lemmas: list[FNode]) -> None:
     with Solver() as check_solver:
         for lemma in lemmas:
             check_solver.push()
@@ -179,12 +180,14 @@ def assert_lemmas_are_tvalid(lemmas: list[FNode]):
             check_solver.pop()
 
 
-def assert_phi_equiv_phi_and_lemmas(phi: FNode, phi_and_lemmas):
+def assert_phi_equiv_phi_and_lemmas(phi: FNode, phi_and_lemmas: FNode) -> None:
     with Solver() as check_solver:
         assert check_solver.is_valid(phi.Iff(phi_and_lemmas)), "Phi and Phi & lemmas are not theory-equivalent"
 
 
-def test_lemmas_correctness(example, solver_info):
+def test_lemmas_correctness(
+    example: tuple[FNode, int, int, int], solver_info: tuple[SMTEnumerator, bool, bool]
+) -> None:
     phi, mc, pmc, pamc = example
     solver, is_projected, is_partitioner = solver_info
 
@@ -243,15 +246,15 @@ def test_lemmas_correctness(example, solver_info):
     assert_models_are_tsat(phi, refined_models)
 
 
-def test_term_ite_exception(solver, x, y, a):
+def test_term_ite_exception(wsolver: SMTEnumerator, x: FNode, y: FNode, a: FNode) -> None:
     phi = ((x >= a.Ite(Real(0), Real(1))) & (y >= 0)) | a
 
     with pytest.raises(AssertionError, match="Term-ITE are not supported yet"):
-        solver.check_supports(phi)
+        wsolver.check_supports(phi)
 
 
 @pytest.mark.parametrize("parallel_procs", [0, -1, multiprocessing.cpu_count() + 1])
-def test_invalid_parallel_procs(parallel_procs, sat_formula):
+def test_invalid_parallel_procs(parallel_procs: int) -> None:
     """Test that invalid parallel_procs (0) raises error"""
     with pytest.raises(ValueError, match="parallel_procs must be between 1"):
         _ = MathSATExtendedPartialEnumerator(parallel_procs=parallel_procs)

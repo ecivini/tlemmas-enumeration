@@ -5,7 +5,7 @@ from enumerators.walkers.walker_bool_abstraction import BooleanAbstractionWalker
 from enumerators.walkers.walker_refinement import RefinementWalker
 
 
-def test_bool_abstraction_walker(i, j, k):
+def test_bool_abstraction_walker(i: FNode, j: FNode, k: FNode) -> None:
     formula: FNode = (i.Equals(10).Implies(j.Equals(0)) | i.Equals(0).Implies(j.Equals(10))) & (
         j.Equals(10).Implies(k.Equals(0)) | j.Equals(0).Implies(k.Equals(10))
     )
@@ -18,7 +18,7 @@ def test_bool_abstraction_walker(i, j, k):
     assert all(atom.is_symbol(BOOL) for atom in abstracted_formula.get_atoms())
 
 
-def test_bool_abstraction_preserves_boolean_atoms(a, x, y):
+def test_bool_abstraction_preserves_boolean_atoms(a: FNode, x: FNode, y: FNode) -> None:
     formula: FNode = a & (x.Equals(1) | y.Equals(2))
 
     abswalker = BooleanAbstractionWalker()
@@ -29,7 +29,7 @@ def test_bool_abstraction_preserves_boolean_atoms(a, x, y):
     assert is_valid(abstracted_formula.Iff(expected_abstracted))
 
 
-def test_boolean_abstraction_and_refinement_round_trip(x, y, a):
+def test_boolean_abstraction_and_refinement_round_trip(x: FNode, y: FNode, a: FNode) -> None:
     phi: FNode = a | ((x.Equals(10) | y.Equals(0)) & x.Equals(0))
     phi_atoms: set[FNode] = phi.get_atoms()
 
