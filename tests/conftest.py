@@ -1,4 +1,5 @@
 import pysmt.environment
+from pysmt.fnode import FNode
 import pytest
 from pysmt.shortcuts import REAL, Symbol
 from pysmt.typing import ArrayType, BOOL, INT, BV8
@@ -36,7 +37,7 @@ SOLVERS = [
 
 
 @pytest.fixture(params=SOLVERS, ids=lambda s: s[0])
-def solver(request) -> SMTEnumerator:
+def solver(request: pytest.FixtureRequest) -> SMTEnumerator:
     _, solver_cls, params = request.param
     return solver_cls(**params)
 
@@ -45,7 +46,7 @@ def solver(request) -> SMTEnumerator:
     params=["raw", "partitioned", "partitioned-on-components"],
     ids=["mode:raw", "mode:part", "mode:part-comp"],
 )
-def wsolver(solver, request):
+def wsolver(solver: SMTEnumerator, request: pytest.FixtureRequest) -> SMTEnumerator:
     if request.param == "raw":
         return solver
     elif request.param == "partitioned":
@@ -57,7 +58,7 @@ def wsolver(solver, request):
 
 
 @pytest.fixture
-def solver_info(wsolver) -> tuple[SMTEnumerator, bool, bool]:
+def solver_info(wsolver: SMTEnumerator) -> tuple[SMTEnumerator, bool, bool]:
     return (
         wsolver,
         getattr(wsolver, "_project_on_theory_atoms", False),
@@ -67,22 +68,22 @@ def solver_info(wsolver) -> tuple[SMTEnumerator, bool, bool]:
 
 # ---- Real variables ----
 @pytest.fixture
-def w():
+def w() -> FNode:
     return Symbol("w", REAL)
 
 
 @pytest.fixture
-def x():
+def x() -> FNode:
     return Symbol("x", REAL)
 
 
 @pytest.fixture
-def y():
+def y() -> FNode:
     return Symbol("y", REAL)
 
 
 @pytest.fixture
-def z():
+def z() -> FNode:
     return Symbol("z", REAL)
 
 
@@ -90,17 +91,17 @@ def z():
 
 
 @pytest.fixture
-def i():
+def i() -> FNode:
     return Symbol("i", INT)
 
 
 @pytest.fixture
-def j():
+def j() -> FNode:
     return Symbol("j", INT)
 
 
 @pytest.fixture
-def k():
+def k() -> FNode:
     return Symbol("k", INT)
 
 
@@ -108,23 +109,28 @@ def k():
 
 
 @pytest.fixture
-def a():
+def a() -> FNode:
     return Symbol("a", BOOL)
 
 
 @pytest.fixture
-def b():
+def b() -> FNode:
     return Symbol("b", BOOL)
+
+
+@pytest.fixture
+def c() -> FNode:
+    return Symbol("c", BOOL)
 
 
 # ---- BV variables ----
 @pytest.fixture
-def bv1():
+def bv1() -> FNode:
     return Symbol("bv1", BV8)
 
 
 @pytest.fixture
-def bv2():
+def bv2() -> FNode:
     return Symbol("bv2", BV8)
 
 
@@ -132,47 +138,89 @@ def bv2():
 
 
 @pytest.fixture
-def array1():
+def array1() -> FNode:
     return Symbol("arr1", ArrayType(INT, INT))
 
 
 @pytest.fixture
-def array2():
+def array2() -> FNode:
     return Symbol("arr2", ArrayType(INT, INT))
 
 
 @pytest.fixture
-def sat_formula(x, y, z):
+def bool_vars(a: FNode, b: FNode, c: FNode) -> dict[str, FNode]:
+    return {"A": a, "B": b, "C": c}
+
+
+@pytest.fixture
+def real_vars(w: FNode, x: FNode, y: FNode, z: FNode) -> dict[str, FNode]:
+    return {"x": x, "y": y, "z": z, "w": w}
+
+
+@pytest.fixture
+def int_vars(i: FNode, j: FNode, k: FNode) -> dict[str, FNode]:
+    return {"i": i, "j": j, "k": k}
+
+
+@pytest.fixture
+def bv_vars(bv1: FNode, bv2: FNode) -> dict[str, FNode]:
+    return {"bv1": bv1, "bv2": bv2}
+
+
+@pytest.fixture
+def array_vars(array1: FNode, array2: FNode) -> dict[str, FNode]:
+    return {"arr1": array1, "arr2": array2}
+
+
+@pytest.fixture
+def all_vars(
+    bool_vars: dict[str, FNode],
+    real_vars: dict[str, FNode],
+    int_vars: dict[str, FNode],
+    bv_vars: dict[str, FNode],
+    array_vars: dict[str, FNode],
+) -> dict[str, FNode]:
+    all_vars = {}
+    all_vars.update(bool_vars)
+    all_vars.update(real_vars)
+    all_vars.update(int_vars)
+    all_vars.update(bv_vars)
+    all_vars.update(array_vars)
+    return all_vars
+
+
+@pytest.fixture
+def sat_formula(x: FNode, y: FNode, z: FNode) -> FNode:
     return (x < y) | (y < z) | (z < x) | x.Equals(5)
 
 
 @pytest.fixture
-def unsat_formula(x, y, z):
+def unsat_formula(x: FNode, y: FNode, z: FNode) -> FNode:
     return (x < y) & (y < z) & (z < x)
 
 
 @pytest.fixture
-def prop_unsat_formula(x, y):
+def prop_unsat_formula(x: FNode, y: FNode) -> FNode:
     return (x < y) & ~(x < y)
 
 
 @pytest.fixture
-def valid_formula(x):
+def valid_formula(x: FNode) -> FNode:
     return (x < 1) | ~(x < 0)
 
 
 @pytest.fixture
-def prop_valid_formula(x, y):
+def prop_valid_formula(x: FNode, y: FNode) -> FNode:
     return (x < y) | ~(x < y)
 
 
 @pytest.fixture
-def rangen_formula():
+def rangen_formula() -> FNode:
     """Rangen formula fixture"""
     return read_phi("./tests/items/rng.smt")
 
 
 @pytest.fixture(params=["sat_formula", "unsat_formula", "valid_formula", "rangen_formula"])
-def any_formula(request):
+def any_formula(request: pytest.FixtureRequest) -> FNode:
     """Return all formula fixtures one by one via parametrization"""
     return request.getfixturevalue(request.param)
