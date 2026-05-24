@@ -43,16 +43,24 @@ def solver(request: pytest.FixtureRequest) -> SMTEnumerator:
 
 
 @pytest.fixture(
-    params=["raw", "partitioned", "partitioned-on-components"],
-    ids=["mode:raw", "mode:part", "mode:part-comp"],
+    params=["raw", "partitioned", "partitioned-on-components", "partitioned-on-components-no-tlemmas-share"],
+    ids=["mode:raw", "mode:part", "mode:part-comp", "mode:part-comp-noshare"],
 )
 def wsolver(solver: SMTEnumerator, request: pytest.FixtureRequest) -> SMTEnumerator:
     if request.param == "raw":
         return solver
     elif request.param == "partitioned":
-        return WithPartitioningWrapper(base_solver=solver, partition_on_formula_components=False)
+        return WithPartitioningWrapper(
+            base_solver=solver, partition_on_formula_components=False, share_tlemmas_between_partitions=True
+        )
     elif request.param == "partitioned-on-components":
-        return WithPartitioningWrapper(base_solver=solver, partition_on_formula_components=True)
+        return WithPartitioningWrapper(
+            base_solver=solver, partition_on_formula_components=True, share_tlemmas_between_partitions=True
+        )
+    elif request.param == "partitioned-on-components-no-tlemmas-share":
+        return WithPartitioningWrapper(
+            base_solver=solver, partition_on_formula_components=True, share_tlemmas_between_partitions=False
+        )
     else:
         raise ValueError(f"Unknown partitioning mode: {request.param}")
 

@@ -70,42 +70,44 @@ def get_conjoined_components(
     return component_to_atoms, atom_to_components
 
 
-def get_partition_relevant_formula_and_lemmas(
+def get_partition_relevant_formula(
     component_to_atoms: dict[FNode, frozenset[FNode]],
     atom_to_components: dict[FNode, set[FNode]],
-    part_atoms: set[FNode],
-    tlemmas: list[FNode],
-) -> tuple[FNode, list[FNode]]:
-    """
-    Constructs a partition-relevant formula and filters lemmas based on shared atoms.
-    """
-    touched_components = {comp for atom in part_atoms for comp in atom_to_components[atom]}
+    partition_atoms: set[FNode],
+) -> tuple[FNode, set[FNode]]:
+    """Construct a partition-relevant formula."""
+    touched_components = {comp for atom in partition_atoms for comp in atom_to_components[atom]}
     n_touched, n_components = len(touched_components), len(component_to_atoms)
     print(f"Touched components: {n_touched}/{n_components}")
-
     with SuspendTypeChecking():
         psi = And(*touched_components) if touched_components else And()
-    if n_touched == n_components:
-        return psi, tlemmas
-
     psi_atoms = set().union(*(component_to_atoms[c] for c in touched_components))
+    return psi, psi_atoms
+
+
+def get_partition_relevant_lemmas(
+    tlemmas: list[FNode],
+    psi_atoms: set[FNode],
+) -> list[FNode]:
+    """Filter lemmas based on shared atoms with current formula psi."""
     relevant_lemmas = [lemma for lemma in tlemmas if not psi_atoms.isdisjoint(lemma.get_atoms())]
     n_relevant_lemmas, n_lemmas = len(relevant_lemmas), len(tlemmas)
     print(f"Using {n_relevant_lemmas}/{n_lemmas} relevant lemmas for this partition.")
-
-    return psi, relevant_lemmas
+    return relevant_lemmas
 
 
 class WithPartitioningWrapper(SMTEnumerator):
     def __init__(
         self,
         base_solver: SMTEnumerator,
-        partition_on_formula_components: bool = False,
+        partition_on_formula_components: bool = True,
+        share_tlemmas_between_partitions: bool = False,
         computation_logger: dict | None = None,
     ):
         super().__init__(computation_logger)
         self._base_solver = base_solver
         self._partition_on_formula_components = partition_on_formula_components
+        self._share_tlemmas_between_partitions = share_tlemmas_between_partitions
         self._project_on_theory_atoms = True
         self._tlemmas = []
         self._models = []
@@ -141,15 +143,20 @@ class WithPartitioningWrapper(SMTEnumerator):
             start_time = time.time()
             print("Solving partition with {} atoms...".format(len(part_atoms)))
             self._base_solver.reset()
+
             psi = phi
-            relevant_lemmas = self._tlemmas
+            psi_atoms = None
             if self._partition_on_formula_components:
-                psi, relevant_lemmas = get_partition_relevant_formula_and_lemmas(
-                    component_to_atoms,
-                    atom_to_components,
-                    part_atoms,
-                    self._tlemmas,
-                )
+                psi, psi_atoms = get_partition_relevant_formula(component_to_atoms, atom_to_components, part_atoms)
+
+            if not self._share_tlemmas_between_partitions:
+                relevant_lemmas = []
+            elif self._partition_on_formula_components:
+                assert psi_atoms is not None
+                relevant_lemmas = get_partition_relevant_lemmas(self._tlemmas, psi_atoms)
+            else:
+                relevant_lemmas = self._tlemmas
+
             with SuspendTypeChecking():
                 psi = And(psi, *relevant_lemmas)
             result = self._base_solver.check_all_sat(psi, list(part_atoms), store_models)
