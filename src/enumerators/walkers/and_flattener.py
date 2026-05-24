@@ -17,7 +17,7 @@ class AndFlattener(DagWalker):
         | {op.SYMBOL, op.FUNCTION, op.ITE}
         | (op.BOOL_CONNECTIVES - {op.AND})
     )
-    def walk_any(self, formula, args, **kwargs):
+    def walk_noand(self, formula, args, **kwargs):
         return frozenset([formula])
 
     def walk_and(self, formula, args, **kwargs) -> frozenset[FNode]:
