@@ -175,6 +175,8 @@ class WithPartitioningWrapper(SMTEnumerator):
             print("Partition solved in {:.2f} seconds.".format(end_time - start_time))
         if self._computation_logger is not None:
             self._computation_logger["Partitions"] = partitions_loggers
+            # Restore base solver's computation logger after changing it for each partition
+            self._base_solver.computation_logger = self._computation_logger
         return overall_result
 
     def get_theory_lemmas(self) -> list[FNode]:
