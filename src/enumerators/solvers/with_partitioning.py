@@ -50,9 +50,13 @@ def partition_atoms(atoms: Collection[FNode]) -> list[set[FNode]]:
 
 def get_conjoined_components(
     phi: FNode,
-) -> tuple[dict[FNode, frozenset[FNode]], dict[FNode, set[FNode]]]:
+) -> tuple[dict[FNode, list[FNode]], dict[FNode, list[FNode]]]:
     """
-    Flattens a formula and groups components that share free variables.
+    Flattens a formula and groups conjunctive components that share free variables.
+
+    Returns:
+        dict[FNode, list[FNode]]: maps each component to the set of theory atoms it contains
+        dict[FNode, list[FNode]]: maps each theory atom to the set of components containing it.
     """
     components = AndFlattener().flatten(phi)
 
@@ -71,23 +75,23 @@ def get_conjoined_components(
     for component in components:
         root_to_components[uf.find(component)].append(component)
 
-    component_to_atoms: dict[FNode, frozenset[FNode]] = {}
-    atom_to_components: defaultdict[FNode, set[FNode]] = defaultdict(set)
+    component_to_atoms: dict[FNode, list[FNode]] = {}
+    atom_to_components: defaultdict[FNode, list[FNode]] = defaultdict(list)
     for root_components in root_to_components.values():
         with SuspendTypeChecking():
             component = And(*root_components)
-        atoms = frozenset(get_theory_atoms(component.get_atoms()))
+        atoms = get_theory_atoms(component.get_atoms())
         component_to_atoms[component] = atoms
 
         for atom in atoms:
-            atom_to_components[atom].add(component)
+            atom_to_components[atom].append(component)
 
     return component_to_atoms, atom_to_components
 
 
 def get_partition_relevant_formula(
-    component_to_atoms: dict[FNode, frozenset[FNode]],
-    atom_to_components: dict[FNode, set[FNode]],
+    component_to_atoms: dict[FNode, list[FNode]],
+    atom_to_components: dict[FNode, list[FNode]],
     partition_atoms: set[FNode],
 ) -> tuple[FNode, set[FNode]]:
     """Construct a partition-relevant formula."""
