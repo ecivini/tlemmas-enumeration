@@ -53,6 +53,17 @@ def get_conjoined_components(
 ) -> tuple[dict[FNode, frozenset[FNode]], dict[FNode, set[FNode]]]:
     """
     Flattens a formula and groups components that share free variables.
+
+    Context:
+    For projected enumeration, keeping only the conjuncts that mention the current
+    partition directly is too weak. An omitted conjunct can still constrain the
+    projected atoms through shared free variables, so a projected truth assignment
+    may have no T-sat completion.
+
+    Example:
+    In `((x <= 0) | (y <= 0)) & ~(x <= 1)`, if we enumerate only on `y <= 0`,
+    keeping just the first conjunct would allow `!(y <= 0)`, even though the second
+    conjunct blocks every T-sat completion for that projected assignment.
     """
     components = AndFlattener().flatten(phi)
 
