@@ -100,8 +100,8 @@ class WithPartitioningWrapper(SMTEnumerator):
     def __init__(
         self,
         base_solver: SMTEnumerator,
-        partition_on_formula_components: bool = False,
-        share_tlemmas_between_partitions: bool = True,
+        partition_on_formula_components: bool = True,
+        share_tlemmas_between_partitions: bool = False,
         computation_logger: dict | None = None,
     ):
         super().__init__(computation_logger)
