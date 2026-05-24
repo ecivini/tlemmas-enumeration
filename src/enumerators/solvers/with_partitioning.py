@@ -50,29 +50,48 @@ def partition_atoms(atoms: Collection[FNode]) -> list[set[FNode]]:
 
 def get_conjoined_components(
     phi: FNode,
-) -> tuple[dict[FNode, frozenset[FNode]], dict[FNode, set[FNode]]]:
+) -> tuple[dict[FNode, list[FNode]], dict[FNode, list[FNode]]]:
     """
-    Flattens a formula and maps components to their atoms, and atoms to their components.
+    Flattens a formula and groups conjunctive components that share free variables.
+
+    Returns:
+        dict[FNode, list[FNode]]: maps each component to the set of theory atoms it contains
+        dict[FNode, list[FNode]]: maps each theory atom to the set of components containing it.
     """
     components = AndFlattener().flatten(phi)
 
-    component_to_atoms: dict[FNode, frozenset[FNode]] = {}
-    atom_to_components: defaultdict[FNode, set[FNode]] = defaultdict(set)
+    var_owner: dict[FNode, FNode] = {}
+    uf = UnionFind()
 
     for c in components:
-        # Precompute the theory atoms for this component once
-        atoms = frozenset(get_theory_atoms(c.get_atoms()))
-        component_to_atoms[c] = atoms
+        for var in c.get_free_variables():
+            owner = var_owner.get(var)
+            if owner is None:
+                var_owner[var] = c
+            else:
+                uf.union(c, owner)
+
+    root_to_components: defaultdict[FNode, list[FNode]] = defaultdict(list)
+    for component in components:
+        root_to_components[uf.find(component)].append(component)
+
+    component_to_atoms: dict[FNode, list[FNode]] = {}
+    atom_to_components: defaultdict[FNode, list[FNode]] = defaultdict(list)
+    for root_components in root_to_components.values():
+        with SuspendTypeChecking():
+            component = And(*root_components)
+        atoms = get_theory_atoms(component.get_atoms())
+        component_to_atoms[component] = atoms
 
         for atom in atoms:
-            atom_to_components[atom].add(c)
+            atom_to_components[atom].append(component)
 
     return component_to_atoms, atom_to_components
 
 
 def get_partition_relevant_formula(
-    component_to_atoms: dict[FNode, frozenset[FNode]],
-    atom_to_components: dict[FNode, set[FNode]],
+    component_to_atoms: dict[FNode, list[FNode]],
+    atom_to_components: dict[FNode, list[FNode]],
     partition_atoms: set[FNode],
 ) -> tuple[FNode, set[FNode]]:
     """Construct a partition-relevant formula."""
