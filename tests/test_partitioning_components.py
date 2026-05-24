@@ -82,7 +82,7 @@ PARTITION_CASES = [
         (3, 2),
     ),
     PartitionCase(
-        "bool-chain-components",
+        "bool-chain-components-constrained",
         lambda s: (s["A"] | (s["x"] <= 0)) & (~s["A"] | (s["y"] <= 0)) & (s["B"] | ~(s["y"] <= 1)) & ~s["B"],
         (3,),
         (2, 1),
