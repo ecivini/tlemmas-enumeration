@@ -139,10 +139,15 @@ class WithPartitioningWrapper(SMTEnumerator):
 
         # Solve each partition separately
         overall_result = True
+        partitions_loggers: list[dict] = []
         for part_atoms in sorted(partitions, key=lambda x: len(x)):
             start_time = time.time()
             print("Solving partition with {} atoms...".format(len(part_atoms)))
             self._base_solver.reset()
+            if self._computation_logger is not None:
+                partition_logger: dict = {}
+                self._base_solver.computation_logger = partition_logger
+                partitions_loggers.append(partition_logger)
 
             psi = phi
             psi_atoms = None
@@ -168,6 +173,8 @@ class WithPartitioningWrapper(SMTEnumerator):
                 self._models.extend(self._base_solver.get_models())
             end_time = time.time()
             print("Partition solved in {:.2f} seconds.".format(end_time - start_time))
+        if self._computation_logger is not None:
+            self._computation_logger["Partitions"] = partitions_loggers
         return overall_result
 
     def get_theory_lemmas(self) -> list[FNode]:
