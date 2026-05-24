@@ -17,6 +17,14 @@ class SMTEnumerator(ABC):
         self._tlemmas = []
         self._computation_logger = computation_logger
 
+    @property
+    def computation_logger(self) -> dict | None:
+        return self._computation_logger
+
+    @computation_logger.setter
+    def computation_logger(self, value: dict | None) -> None:
+        self._computation_logger = value
+
     @abstractmethod
     def reset(self) -> None:
         """Resets the internal state of the solver"""
