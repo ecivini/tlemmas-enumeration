@@ -14,6 +14,7 @@ from pysmt.solvers.msat import MathSAT5Solver
 
 from enumerators.constants import SAT, UNSAT
 from enumerators.formula import get_theory_atoms
+from enumerators.solvers.ranking import rank_atoms_by_hub_centrality
 from enumerators.solvers.solver import SMTEnumerator
 from enumerators.walkers.normalizer import NormalizerWalker
 from .mathsat_utils import (
@@ -159,47 +160,57 @@ class DivideByPartialAllSMTStrategy(DivideStrategy):
 class DivideByProjectedEnumerationStrategy(DivideStrategy):
     @classmethod
     def divide(
-        cls, phi: FNode, atoms, n_workers: int, norm: NormalizerWalker, min_partial_models: int = 0
+        cls,
+        phi: FNode,
+        atoms: list[FNode],
+        n_workers: int,
+        norm: NormalizerWalker,
+        min_cubes: int = 0,
+        batch_size: int = 5,
     ) -> tuple[list[list[FNode]], list[FNode]]:
-        if min_partial_models <= 0:
-            min_partial_models = n_workers * 100
-        atoms = cls._rank_atoms_by_hub_centrality(atoms, phi)
+        if min_cubes <= 0:
+            min_cubes = n_workers * 100
+        # atoms = rank_atoms_by_degree(atoms)
+        atoms = rank_atoms_by_hub_centrality(atoms)
+        print("Divide on atoms", len(atoms), "looking for at least", min_cubes, "cubes")
         # choose a number of atoms such that 2**|atoms| >= 10 * n_workers, so to have enough partial models to keep all workers busy
-        n_atoms_to_project = min(len(atoms), (min_partial_models - 1).bit_length()) - 1
-        partial_models = []
+        cubes: list[list[FNode]] = [[]]
         tlemmas = []
         with Solver("msat", solver_options=MSAT_TOTAL_ENUM_OPTIONS) as solver:
             solver.add_assertion(phi)
             converter = solver.converter
             msat_env = solver.msat_env()
-            while len(partial_models) < min_partial_models and n_atoms_to_project < len(atoms):
-                partial_models.clear()
-                n_atoms_to_project += 1
-                atoms_to_project = atoms[:n_atoms_to_project]
-                solver.push()
-                mathsat.msat_all_sat(
-                    msat_env,
-                    get_converted_atoms(atoms_to_project, converter),
-                    callback=lambda model: allsat_callback_store(model, converter, partial_models),
-                )
-                tlemmas.extend([converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)])
-                solver.pop()
+            batch_begin = 0
+            batch_end = max(1, min(len(atoms), (min_cubes - 1).bit_length()))
+            while len(cubes) < min_cubes and batch_begin < len(atoms):
+                atoms_to_project = atoms[batch_begin:batch_end]
+                # print("projecting on", len(atoms_to_project), "atoms")
+                next_gen: list[list[FNode]] = []
+                for cube in cubes:
+                    solver.push()
+                    solver.add_assertions(cube)
+                    cube_extensions: list[list[FNode]] = []
+                    # print("Extending", cube, "Projecting onto ", atoms_to_project)
+                    mathsat.msat_all_sat(
+                        msat_env,
+                        get_converted_atoms(atoms_to_project, converter),
+                        callback=lambda model: allsat_callback_store(model, converter, cube_extensions),
+                    )
+                    # print("Found extensions", cube_extensions)
+                    tlemmas.extend([converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)])
+                    # print("Learnt lemmas", tlemmas)
+                    next_gen.extend([cube + cube_ext for cube_ext in cube_extensions])
+
+                    solver.pop()
+                    # print("Building next gen...", next_gen)
+                cubes = next_gen
+                # print("Next gen:", len(cubes))
+                batch_begin = batch_end
+                batch_end = batch_begin + batch_size
         tlemmas = [norm.normalize(lemma) for lemma in tlemmas]
-        partial_models = [[norm.normalize(literal) for literal in model] for model in partial_models]
+        cubes = [[norm.normalize(literal) for literal in model] for model in cubes]
 
-        return partial_models, tlemmas
-
-    @classmethod
-    def _rank_atoms_by_hub_centrality(cls, atoms: list[FNode], phi: FNode) -> list[FNode]:
-        var_freq = {}
-        for atom in atoms:
-            for var in atom.get_free_variables():
-                var_freq[var] = var_freq.get(var, 0) + 1
-
-        def score(atom):
-            return sum(var_freq[v] for v in atom.get_free_variables())
-
-        return sorted(atoms, key=score, reverse=True)
+        return cubes, tlemmas
 
 
 def get_converted_atoms(atoms, converter) -> list[FNode]:
