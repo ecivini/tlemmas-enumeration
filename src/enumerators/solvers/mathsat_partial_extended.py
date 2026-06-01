@@ -38,7 +38,7 @@ def _initialize_worker(
     phi: FNode,
     all_atoms: list[FNode],
     proj_atoms: list[int],
-    tlemmas: list[tuple[list[int], list[str]]],
+    tlemmas: list[EncodedClause],
     solver_options: dict[str, str],
     store_models: bool,
 ) -> None:
@@ -46,8 +46,9 @@ def _initialize_worker(
     _STORE_MODELS = store_models
     env: Environment = get_env()
 
-    _SOLVER = cast(MathSAT5Solver, env.factory.Solver("msat", solver_options=solver_options))
-    converter = _SOLVER.converter
+    solver = cast(MathSAT5Solver, env.factory.Solver("msat", solver_options=solver_options))
+    _SOLVER = solver
+    converter = solver.converter
 
     contextualizer = FormulaContextualizer()
     normalizer = NormalizerWalker(converter)
@@ -57,9 +58,9 @@ def _initialize_worker(
     _MSAT_PROJ_ATOMS = [converter.convert(_ATOM_MANAGER.decode_literal(atom)) for atom in proj_atoms]
 
     phi = contextualizer.walk(phi)
-    _SOLVER.add_assertion(phi)
+    solver.add_assertion(phi)
     for encoded_tlemma in tlemmas:
-        _SOLVER.add_assertion(_ATOM_MANAGER.decode_clause(encoded_tlemma))
+        solver.add_assertion(_ATOM_MANAGER.decode_clause(encoded_tlemma))
 
 
 def _parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[EncodedClause]]:
@@ -305,20 +306,13 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
             proj_atoms = [atom_manager.encode_literal(atom) for atom in atoms]
             enc_partial_models = [atom_manager.encode_model(model) for model in partial_models]
             enc_tlemmas = [atom_manager.encode_clause(lemma) for lemma in self._tlemmas]
-            new_tlemmas = []
-            pool = multiprocessing.Pool(
+            new_tlemmas: list[FNode] = []
+            seen_tlemmas = set(enc_tlemmas)
+            with multiprocessing.Pool(
                 processes=self._parallel_procs,
                 initializer=_initialize_worker,
-                initargs=(
-                    phi,
-                    all_atoms,
-                    proj_atoms,
-                    enc_tlemmas,
-                    MSAT_TOTAL_ENUM_OPTIONS,
-                    store_models,
-                ),
-            )
-            with pool:
+                initargs=(phi, all_atoms, proj_atoms, enc_tlemmas, MSAT_TOTAL_ENUM_OPTIONS, store_models),
+            ) as pool:
                 # Use imap_unordered to process results as they complete
                 total_deserialization_time = 0.0
                 for worker_enc_models, work_model_count, worker_enc_tlemmas in pool.imap_unordered(
@@ -326,7 +320,10 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
                 ):
                     start_time = time.time()
                     self._models.extend([atom_manager.decode_model(model) for model in worker_enc_models])
-                    new_tlemmas.extend([atom_manager.decode_clause(lemma) for lemma in worker_enc_tlemmas])
+                    unique_tlemmas = set(worker_enc_tlemmas) - seen_tlemmas
+                    if unique_tlemmas:
+                        seen_tlemmas.update(unique_tlemmas)
+                        new_tlemmas.extend(atom_manager.decode_clause(lemma) for lemma in unique_tlemmas)
                     total_deserialization_time += time.time() - start_time
                     self._models_count += work_model_count
                 if self._computation_logger is not None:

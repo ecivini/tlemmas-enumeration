@@ -2,7 +2,7 @@ import pytest
 from pysmt.fnode import FNode
 from pysmt.shortcuts import FALSE, is_valid
 
-from enumerators.solvers.mathsat_utils import AtomManager
+from enumerators.solvers.mathsat_utils import AtomManager, EncodedClause
 
 
 @pytest.fixture
@@ -54,7 +54,7 @@ def test_encode_decode_empty_inputs() -> None:
 
     assert mgr.encode_model([]) == []
     assert mgr.decode_model([]) == []
-    assert mgr.decode_clause(([], [])) == FALSE()
+    assert mgr.decode_clause(((), ())) == FALSE()
 
 
 def test_encode_clause_round_trip(a1: FNode, a2: FNode, a3: FNode) -> None:
@@ -62,8 +62,10 @@ def test_encode_clause_round_trip(a1: FNode, a2: FNode, a3: FNode) -> None:
 
     clause = a1 | ~a2 | ~a3
     known, new = mgr.encode_clause(clause)
+    encoded_clause: EncodedClause = (known, new)
 
-    assert known == [-2, 1]
-    assert new == [mgr.encode_literal(~a3)]
+    assert known == (1, -2)
+    assert new == (mgr.encode_literal(~a3),)
     assert isinstance(new[0], str)
-    assert is_valid(mgr.decode_clause((known, new)).Iff(clause))
+    assert len({(known, new), (known, new)}) == 1
+    assert is_valid(mgr.decode_clause(encoded_clause).Iff(clause))
