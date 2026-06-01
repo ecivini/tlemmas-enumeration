@@ -63,7 +63,7 @@ def deserialize_formula(formula_str: str, parser: SmtLibParser) -> FNode:
 EncodedModel: TypeAlias = list[int]
 
 # A single clause (T-lemma): known atoms as signed indices + new atoms as SMT-LIB strings
-EncodedClause: TypeAlias = tuple[list[int], list[str]]
+EncodedClause: TypeAlias = tuple[tuple[int, ...], tuple[str, ...]]
 
 
 class AtomManager:
@@ -113,7 +113,7 @@ class AtomManager:
             else:
                 enc = self.encode_literal(lit)
                 (known if isinstance(enc, int) else new).append(enc)
-        return known, new
+        return tuple(sorted(known, key=lambda v: abs(v))), tuple(sorted(new))
 
     def decode_literal(self, val: int | str) -> FNode:
         if isinstance(val, int):
