@@ -28,16 +28,14 @@ class SuspendNodeStoring(object):
             env = get_env()
         self.env = env
         self.mgr = env.formula_manager
-        self._formulae = None
+        self._snapshot = None
 
     def __enter__(self):
         """Snapshot formula manager nodes."""
-        self._formulae = set(self.mgr.formulae)
+        self._snapshot = set(self.mgr.formulae)
         return self.env
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Drop nodes created while context was active."""
-        assert self._formulae is not None
-        for formula in list(self.mgr.formulae):
-            if formula not in self._formulae:
-                del self.mgr.formulae[formula]
+        for k in self.mgr.formulae.keys() - self._snapshot:
+            del self.mgr.formulae[k]
