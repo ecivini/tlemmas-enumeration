@@ -15,7 +15,9 @@ from pysmt.solvers.msat import MathSAT5Solver
 from enumerators.constants import SAT, UNSAT
 from enumerators.formula import get_theory_atoms
 from enumerators.solvers.solver import SMTEnumerator
+from enumerators.util.pysmt import SuspendNodeStoring
 from enumerators.walkers.normalizer import NormalizerWalker
+
 from .mathsat_utils import (
     MSAT_PARTIAL_ENUM_OPTIONS,
     MSAT_TOTAL_ENUM_OPTIONS,
@@ -25,7 +27,6 @@ from .mathsat_utils import (
     allsat_callback_count,
     allsat_callback_store,
 )
-
 
 _ATOM_MANAGER: AtomManager | None = None
 _MSAT_PROJ_ATOMS = []
@@ -104,11 +105,12 @@ def _parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[En
         )
         found_models_count = models_count_l[0]
 
-    pysmt_tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(solver.msat_env())]
+    with SuspendNodeStoring():
+        pysmt_tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(solver.msat_env())]
+        found_tlemmas = [atom_manager.encode_clause(lemma) for lemma in pysmt_tlemmas]
 
     solver.pop()
     # solver.add_assertions(found_tlemmas)
-    found_tlemmas = [atom_manager.encode_clause(lemma) for lemma in pysmt_tlemmas]
 
     return found_models, found_models_count, found_tlemmas
 
