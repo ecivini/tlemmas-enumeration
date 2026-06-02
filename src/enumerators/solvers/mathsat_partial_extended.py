@@ -106,8 +106,10 @@ def _parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[En
         found_models_count = models_count_l[0]
 
     with SuspendTypeChecking(), SuspendNodeStoring():
-        pysmt_tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(solver.msat_env())]
-        found_tlemmas = [atom_manager.encode_clause(lemma) for lemma in pysmt_tlemmas]
+        found_tlemmas = [
+            atom_manager.encode_clause(converter.back(lemma))
+            for lemma in mathsat.msat_get_theory_lemmas(solver.msat_env())
+        ]
 
     solver.pop()
     # solver.add_assertions(found_tlemmas)
