@@ -15,7 +15,9 @@ from pysmt.solvers.msat import MathSAT5Solver
 from enumerators.constants import SAT, UNSAT
 from enumerators.formula import get_theory_atoms
 from enumerators.solvers.solver import SMTEnumerator
+from enumerators.util.pysmt import SuspendNodeStoring, SuspendTypeChecking
 from enumerators.walkers.normalizer import NormalizerWalker
+
 from .mathsat_utils import (
     MSAT_PARTIAL_ENUM_OPTIONS,
     MSAT_TOTAL_ENUM_OPTIONS,
@@ -25,7 +27,6 @@ from .mathsat_utils import (
     allsat_callback_count,
     allsat_callback_store,
 )
-
 
 _ATOM_MANAGER: AtomManager | None = None
 _MSAT_PROJ_ATOMS = []
@@ -104,11 +105,14 @@ def _parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[En
         )
         found_models_count = models_count_l[0]
 
-    pysmt_tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(solver.msat_env())]
+    with SuspendTypeChecking(), SuspendNodeStoring():
+        found_tlemmas = [
+            atom_manager.encode_clause(converter.back(lemma))
+            for lemma in mathsat.msat_get_theory_lemmas(solver.msat_env())
+        ]
 
     solver.pop()
     # solver.add_assertions(found_tlemmas)
-    found_tlemmas = [atom_manager.encode_clause(lemma) for lemma in pysmt_tlemmas]
 
     return found_models, found_models_count, found_tlemmas
 
@@ -219,6 +223,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
         project_on_theory_atoms: bool = True,
         parallel_procs: int = 1,
         divide_strategy: type[DivideStrategy] = DivideByPartialAllSMTStrategy,
+        maxtasksperchild: int = 20,
     ):
         super().__init__(computation_logger=computation_logger)
         if parallel_procs < 1 or parallel_procs > multiprocessing.cpu_count():
@@ -229,6 +234,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
         self._project_on_theory_atoms = project_on_theory_atoms
         self._parallel_procs = parallel_procs
         self._divide_strategy = divide_strategy
+        self._maxtasksperchild = maxtasksperchild
 
     def reset(self):
         self.solver_total.reset_assertions()
@@ -312,6 +318,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
                 processes=self._parallel_procs,
                 initializer=_initialize_worker,
                 initargs=(phi, all_atoms, proj_atoms, enc_tlemmas, MSAT_TOTAL_ENUM_OPTIONS, store_models),
+                maxtasksperchild=self._maxtasksperchild,
             ) as pool:
                 # Use imap_unordered to process results as they complete
                 total_deserialization_time = 0.0
