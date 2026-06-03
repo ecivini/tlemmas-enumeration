@@ -36,7 +36,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         computation_logger: dict | None = None,
         project_on_theory_atoms: bool = True,
         parallel_procs: int = 1,
-        divide_strategy: type[DivideStrategy] = DivideByPartialAllSMTStrategy,
+        divide_strategy: DivideStrategy | None = None,
         maxtasksperchild: int = 20,
         show_progress: bool = False,
     ):
@@ -48,7 +48,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         self._converter_total = self._solver_total.converter
         self._project_on_theory_atoms = project_on_theory_atoms
         self._parallel_procs = parallel_procs
-        self._divide_strategy = divide_strategy
+        self._divide_strategy = divide_strategy if divide_strategy is not None else DivideByPartialAllSMTStrategy()
         self._maxtasksperchild = maxtasksperchild
         self._show_progress = show_progress
 
@@ -80,7 +80,9 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
 
         normalizer = NormalizerWalker(converter)
         start_time = time.time()
-        partial_models, tlemmas = self._divide_strategy.divide(phi, atoms, self._parallel_procs, normalizer)
+        partial_models, tlemmas = self._divide_strategy(
+            phi, atoms, normalizer, n_workers=self._parallel_procs, show_progress=self._show_progress
+        )
         self._tlemmas.extend(tlemmas)
 
         end_time = time.time()

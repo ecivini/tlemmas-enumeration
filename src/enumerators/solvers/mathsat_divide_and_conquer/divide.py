@@ -1,4 +1,5 @@
 import math
+from multiprocessing import Value
 from typing import Protocol
 
 import mathsat
@@ -18,29 +19,14 @@ from enumerators.walkers.normalizer import NormalizerWalker
 
 
 class DivideStrategy(Protocol):
-    @classmethod
-    def divide(
-        cls, phi: FNode, atoms: list[FNode], n_workers: int, norm: NormalizerWalker
-    ) -> tuple[list[list[FNode]], list[FNode]]:
-        """
-        Partitions the search space of phi into disjoint T-SAT partial assignments.
-
-        Args:
-            phi: the formula to divide
-            atoms: the atoms to consider for the division (e.g., theory atoms)
-            n_workers: the number of workers that will solve the resulting partial assignments in parallel
-            norm: normalizer used to normalize returned models and lemmas
-        Returns:
-            a list of partial assignments covering the search space of phi
-            a list of theory lemmas found during the division
-        """
-        ...
+    def __call__(
+        self, phi: FNode, atoms: list[FNode], norm: NormalizerWalker, **kwargs
+    ) -> tuple[list[list[FNode]], list[FNode]]: ...
 
 
 class DivideByPartialAllSMTStrategy(DivideStrategy):
-    @classmethod
-    def divide(
-        cls, phi: FNode, atoms: list[FNode], n_workers: int, norm: NormalizerWalker
+    def __call__(
+        self, phi: FNode, atoms: list[FNode], norm: NormalizerWalker, **kwargs
     ) -> tuple[list[list[FNode]], list[FNode]]:
         phi = PolarityCNFizer(nnf=True, mutex_nnf_labels=True).convert_as_formula(phi)
         partial_models = []
@@ -61,17 +47,28 @@ class DivideByPartialAllSMTStrategy(DivideStrategy):
 
 
 class DivideByProjectedEnumerationStrategy(DivideStrategy):
-    @classmethod
-    def divide(
-        cls,
+    def __init__(self, min_cubes: int = 0):
+        self._min_cubes = min_cubes
+
+    def compute_min_cubes(self, n_workers: int) -> int:
+        if self._min_cubes > 0:
+            return self._min_cubes
+        if n_workers <= 0:
+            raise ValueError(
+                "One between min_cubes ({}) and n_workers ({}) must be positive!".format(self._min_cubes, n_workers)
+            )
+        return n_workers * 20
+
+    def __call__(
+        self,
         phi: FNode,
         atoms: list[FNode],
-        n_workers: int,
         norm: NormalizerWalker,
-        min_cubes: int = 0,
+        n_workers: int = 0,
+        show_progress: bool = False,
+        **kwargs,
     ) -> tuple[list[list[FNode]], list[FNode]]:
-        if min_cubes <= 0:
-            min_cubes = n_workers * 20
+        min_cubes = self.compute_min_cubes(n_workers)
         atoms = rank_atoms_by_hub_centrality(atoms)
 
         cubes: list[list[FNode]] = [[]]
@@ -85,7 +82,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             while len(cubes) < min_cubes and batch_begin < len(atoms):
                 atoms_to_project = atoms[batch_begin:batch_end]
                 next_gen: list[list[FNode]] = []
-                for cube in tqdm.tqdm(cubes, desc="Dividing", leave=False, disable=len(cubes) <= 1):
+                for cube in tqdm.tqdm(cubes, desc="Dividing", leave=False, disable=not show_progress):
                     solver.push()
                     solver.add_assertions(cube)
                     cube_extensions: list[list[FNode]] = []
@@ -100,7 +97,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
                 if not next_gen:
                     break
                 bf = len(next_gen) / max(1, len(cubes))
-                batch_size = cls._next_batch_size(
+                batch_size = self._next_batch_size(
                     current_cubes=len(next_gen),
                     min_cubes=min_cubes,
                     last_batch_size=batch_end - batch_begin,
