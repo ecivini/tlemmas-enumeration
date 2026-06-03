@@ -16,7 +16,6 @@ from enumerators.solvers.mathsat_utils import (
 from enumerators.util.pysmt import SuspendNodeStoring, SuspendTypeChecking
 from enumerators.walkers.normalizer import NormalizerWalker
 
-
 _ATOM_MANAGER: AtomManager
 _MSAT_PROJ_ATOMS: list[mathsat.msat_term]
 
