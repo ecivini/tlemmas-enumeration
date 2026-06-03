@@ -225,7 +225,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
         parallel_procs: int = 1,
         divide_strategy: type[DivideStrategy] = DivideByPartialAllSMTStrategy,
         maxtasksperchild: int = 20,
-        show_progress: bool = True,
+        show_progress: bool = False,
     ):
         super().__init__(computation_logger=computation_logger)
         if parallel_procs < 1 or parallel_procs > multiprocessing.cpu_count():
@@ -327,7 +327,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
                 total_deserialization_time = 0.0
                 for worker_enc_models, work_model_count, worker_enc_tlemmas in tqdm.tqdm(
                     pool.imap_unordered(_parallel_worker, enc_partial_models),
-                    desc="Solving suproblems",
+                    desc="Solving subproblems",
                     total=len(enc_partial_models),
                     disable=not self._show_progress,
                 ):
