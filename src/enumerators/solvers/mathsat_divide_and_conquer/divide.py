@@ -161,7 +161,8 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             while len(cubes) < min_cubes and batch_begin < len(atoms):
                 atoms_to_project = atoms[batch_begin:batch_end]
                 next_gen: list[list[FNode]] = []
-                for cube in tqdm.tqdm(cubes, desc="Dividing", leave=False, disable=not show_progress):
+                desc = f"Dividing {len(cubes)}/{min_cubes} cubes | atoms {len(atoms_to_project)}"
+                for cube in tqdm.tqdm(cubes, desc=desc, leave=False, disable=not show_progress):
                     solver.push()
                     solver.add_assertions(cube)
                     cube_extensions: list[list[FNode]] = []
