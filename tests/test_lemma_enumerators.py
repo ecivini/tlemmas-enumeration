@@ -245,11 +245,7 @@ def test_lemmas_correctness(
         atoms=list(phi_abstr.get_atoms()),
         store_models=True,
     )
-    assert abstr_sat == phi_sat, (
-        "Satisfiability of abstracted formula with lemmas should match original; lemmas: {}, abstr: {}".format(
-            lemmas, phi_and_lemmas_abstr
-        )
-    )
+    assert abstr_sat == phi_sat, "Satisfiability of abstracted formula with lemmas should match original"
     assert solver_abstr.get_models_count() == expected_models_count, "Model count should match expected"
 
     # Check phi_and_lemmas is t-reduced
