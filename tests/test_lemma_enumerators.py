@@ -10,9 +10,7 @@ from pysmt.shortcuts import Array, And, Int, Real, Solver, ToReal
 from pysmt.typing import INT
 
 from enumerators.formula import get_normalized, read_phi
-from enumerators.solvers.mathsat_divide_and_conquer import MathSATDivideAndConquerEnumerator
-from enumerators.solvers.mathsat_total import MathSATTotalEnumerator
-from enumerators.solvers.solver import SMTEnumerator
+from enumerators.solvers import SMTEnumerator, MathSATTotalEnumerator, MathSATDivideAndConquerEnumerator
 from enumerators.walkers.walker_bool_abstraction import BooleanAbstractionWalker
 from enumerators.walkers.walker_refinement import RefinementWalker
 
@@ -247,7 +245,11 @@ def test_lemmas_correctness(
         atoms=list(phi_abstr.get_atoms()),
         store_models=True,
     )
-    assert abstr_sat == phi_sat, "Satisfiability of abstracted formula with lemmas should match original"
+    assert abstr_sat == phi_sat, (
+        "Satisfiability of abstracted formula with lemmas should match original; lemmas: {}, abstr: {}".format(
+            lemmas, phi_and_lemmas_abstr
+        )
+    )
     assert solver_abstr.get_models_count() == expected_models_count, "Model count should match expected"
 
     # Check phi_and_lemmas is t-reduced
