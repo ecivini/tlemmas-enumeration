@@ -24,14 +24,14 @@ def pytest_runtest_setup():
 SOLVERS = [
     ("total", MathSATTotalEnumerator, {"project_on_theory_atoms": False}),
     ("total-project", MathSATTotalEnumerator, {"project_on_theory_atoms": True}),
-    ("partial-1-div_strategy-partial", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 1, "divide_strategy": DivideByPartialAllSMTStrategy}),
-    ("partial-1-div_strategy-project", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 1, "divide_strategy": DivideByProjectedEnumerationStrategy}),
-    ("partial-project-1-div_strategy-partial", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 1, "divide_strategy": DivideByPartialAllSMTStrategy}),
-    ("partial-project-1-div_strategy-project", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 1, "divide_strategy": DivideByProjectedEnumerationStrategy}),
-    ("partial-8-div_strategy-partial", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 8, "divide_strategy": DivideByPartialAllSMTStrategy}),
-    ("partial-8-div_strategy-project", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 8, "divide_strategy": DivideByProjectedEnumerationStrategy}),
-    ("partial-project-8-div_strategy-partial", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 8, "divide_strategy": DivideByPartialAllSMTStrategy}),
-    ("partial-project-8-div_strategy-project", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 8, "divide_strategy": DivideByProjectedEnumerationStrategy}),
+    ("d&c-1-div_strategy-partial", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 1, "divide_strategy": DivideByPartialAllSMTStrategy}),
+    ("d&c-1-div_strategy-project", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 1, "divide_strategy": DivideByProjectedEnumerationStrategy}),
+    ("d&c-project-1-div_strategy-partial", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 1, "divide_strategy": DivideByPartialAllSMTStrategy}),
+    ("d&c-project-1-div_strategy-project", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 1, "divide_strategy": DivideByProjectedEnumerationStrategy}),
+    ("d&c-8-div_strategy-partial", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 8, "divide_strategy": DivideByPartialAllSMTStrategy}),
+    ("d&c-8-div_strategy-project", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 8, "divide_strategy": DivideByProjectedEnumerationStrategy}),
+    ("d&c-project-8-div_strategy-partial", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 8, "divide_strategy": DivideByPartialAllSMTStrategy}),
+    ("d&c-project-8-div_strategy-project", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 8, "divide_strategy": DivideByProjectedEnumerationStrategy}),
 ]
 # fmt: on
 
