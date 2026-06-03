@@ -25,10 +25,22 @@ from enumerators.walkers.normalizer import NormalizerWalker
 
 
 class MathSATDivideAndConquerEnumerator(SMTEnumerator):
-    """A wrapper for the mathsat T-solver.
+    """All-SMT enumerator using divide-and-conquer over partial assignments.
 
-    Computes all-SMT by first computing partial assignments and then extending them to total ones.
-    The result of the enumeration is a total enumeration of truth assignments.
+    Computes All-SMT by first dividing the search space via partial assignments
+    (cubes), then extending each partial assignment to a total one
+    (sequentially or in parallel).
+
+    Args:
+        computation_logger: Optional dict for profiling timings and counters.
+        project_on_theory_atoms: If ``True``, enumeration is projected on theory atoms only
+        parallel_procs: Number of parallel worker processes for the total enumeration phase.
+        divide_strategy: A :class:`DivideStrategy` instance.  If ``None``,
+            defaults to :class:`DivideByPartialAllSMTStrategy`.
+        maxtasksperchild: Maximum number of tasks a worker process can complete before being
+            replaced.
+        show_progress: Whether to display ``tqdm`` progress bars during
+            the divide and total enumeration phases.
     """
 
     def __init__(
@@ -59,6 +71,20 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         self._models_count = 0
 
     def check_all_sat(self, phi: FNode, atoms: list[FNode] | None = None, store_models: bool = False) -> bool:
+        """Enumerate all satisfying assignments of ``phi``.
+
+        Args:
+            phi: Formula to enumerate truth assignments for.
+            atoms: Atoms to project on.  If ``None``, all atoms of ``phi`` are
+                used (filtered by ``project_on_theory_atoms`` if enabled).
+            store_models: If ``True``, store enumerated models in-memory
+                (accessible via :meth:`get_models`).  If ``False``, only count
+                them (:meth:`get_models_count`).
+
+        Returns:
+            ``True`` if ``phi`` is satisfiable (models were enumerated),
+            ``False`` if unsatisfiable.
+        """
         self.check_supports(phi)
         self.reset()
 
