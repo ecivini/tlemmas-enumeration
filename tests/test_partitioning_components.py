@@ -5,9 +5,8 @@ import pytest
 from pysmt.fnode import FNode
 
 from enumerators.formula import get_normalized, get_theory_atoms
-from enumerators.solvers.mathsat_total import MathSATTotalEnumerator
+from enumerators.solvers import MathSATTotalEnumerator, WithPartitioningWrapper
 from enumerators.solvers.with_partitioning import (
-    WithPartitioningWrapper,
     get_conjoined_components,
     get_partition_relevant_formula,
     partition_atoms,

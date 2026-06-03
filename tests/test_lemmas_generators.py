@@ -10,7 +10,7 @@ from pysmt.shortcuts import Array, And, Int, Real, Solver, ToReal
 from pysmt.typing import INT
 
 from enumerators.formula import get_normalized, read_phi
-from enumerators.solvers.mathsat_partial_extended import MathSATExtendedPartialEnumerator
+from enumerators.solvers.mathsat_divide_and_conquer import MathSATDivideAndConquerEnumerator
 from enumerators.solvers.mathsat_total import MathSATTotalEnumerator
 from enumerators.solvers.solver import SMTEnumerator
 from enumerators.walkers.walker_bool_abstraction import BooleanAbstractionWalker
@@ -38,7 +38,7 @@ ALL_RAW_TEST_CASES = [
     TCase("LRA two vars", lambda s: (s["x"] + s["y"] >= 1) | (s["x"] + s["y"] <= 0), 2, 2, 2),
     TCase("LRA+Bool simple", lambda s: ((s["x"] + s["y"] >= 1) & s["A"]) | ((s["x"] + s["y"] <= 0) & ~s["A"]), 2, 2, 2),
     TCase("LRA+Bool unsat", lambda s: (s["A"] | (s["x"] > 0)) & (~s["A"] | (s["x"] < 0)) & s["x"].Equals(0), 0, 0, 0),
-    TCase("LRA+Bool proj", lambda s: ((~s["A"] | (s["x"] + s["y"] >= 1)) & (~s["B"] | (s["x"] <= 0))), 9, 4, 4),
+    TCase("LRA+Bool proj", lambda s: (~s["A"] | (s["x"] + s["y"] >= 1)) & (~s["B"] | (s["x"] <= 0)), 9, 4, 4),
     TCase(
         "LRA eq lemma", lambda s: ~s["x"].Equals(s["y"]) | ((s["x"] >= Real(1)) & (s["x"] + s["y"] <= Real(0))), 4, 4, 4
     ),
@@ -46,8 +46,9 @@ ALL_RAW_TEST_CASES = [
     TCase("LIRA disj", lambda s: (s["x"] + ToReal(s["i"]) >= 2.5) | (ToReal(s["i"]) <= 0.5), 3, 3, 3),
     TCase(
         "LIRA complex",
-        lambda s: ((s["x"] + ToReal(s["i"]) >= 3.5) & (s["y"] <= 1.0))
-        | (s["A"] & (s["x"] + 2 * ToReal(s["i"]) <= 0.0)),
+        lambda s: (
+            ((s["x"] + ToReal(s["i"]) >= 3.5) & (s["y"] <= 1.0)) | (s["A"] & (s["x"] + 2 * ToReal(s["i"]) <= 0.0))
+        ),
         7,
         5,
         5,
@@ -115,12 +116,14 @@ ALL_RAW_TEST_CASES = [
     TCase(
         "Arrays extensionality",
         lambda s: (
-            s["arr1"].Select(Int(0)).Equals(s["arr2"].Select(Int(0)))
-            & ~s["arr1"].Equals(s["arr2"])
-            & s["arr1"].Equals(Array(INT, Int(0)).Store(s["i"], Int(1)))
-            & s["arr2"].Equals(Array(INT, Int(0)).Store(s["j"], Int(1)))
-        )
-        | s["i"].Equals(s["j"]),
+            (
+                s["arr1"].Select(Int(0)).Equals(s["arr2"].Select(Int(0)))
+                & ~s["arr1"].Equals(s["arr2"])
+                & s["arr1"].Equals(Array(INT, Int(0)).Store(s["i"], Int(1)))
+                & s["arr2"].Equals(Array(INT, Int(0)).Store(s["j"], Int(1)))
+            )
+            | s["i"].Equals(s["j"])
+        ),
         9,
         9,
         9,
@@ -128,17 +131,24 @@ ALL_RAW_TEST_CASES = [
     TCase("Arrays unsat", lambda s: s["arr1"].Store(s["i"], Int(1)).Select(s["i"]).Equals(0), 0, 0, 0),
     TCase(
         "Arrays+LIA simple",
-        lambda s: s["arr1"].Select(s["i"]).Equals(s["j"])
-        | (s["j"].Equals(s["j"]) | s["arr2"].Store(s["i"], s["j"] + 1).Select(s["i"]).Equals(s["arr1"].Select(s["i"]))),
+        lambda s: (
+            s["arr1"].Select(s["i"]).Equals(s["j"])
+            | (
+                s["j"].Equals(s["j"])
+                | s["arr2"].Store(s["i"], s["j"] + 1).Select(s["i"]).Equals(s["arr1"].Select(s["i"]))
+            )
+        ),
         3,
         3,
         3,
     ),
     TCase(
         "Arrays+LRA unsat",
-        lambda s: s["arr1"].Select(s["i"]).Equals(s["j"])
-        & s["arr2"].Equals(s["arr1"].Store(s["i"], s["j"] + 1))
-        & s["arr2"].Select(s["i"]).Equals(s["arr1"].Select(s["i"])),
+        lambda s: (
+            s["arr1"].Select(s["i"]).Equals(s["j"])
+            & s["arr2"].Equals(s["arr1"].Store(s["i"], s["j"] + 1))
+            & s["arr2"].Select(s["i"]).Equals(s["arr1"].Select(s["i"]))
+        ),
         0,
         0,
         0,
@@ -257,4 +267,4 @@ def test_term_ite_exception(wsolver: SMTEnumerator, x: FNode, y: FNode, a: FNode
 def test_invalid_parallel_procs(parallel_procs: int) -> None:
     """Test that invalid parallel_procs (0) raises error"""
     with pytest.raises(ValueError, match="parallel_procs must be between 1"):
-        _ = MathSATExtendedPartialEnumerator(parallel_procs=parallel_procs)
+        _ = MathSATDivideAndConquerEnumerator(parallel_procs=parallel_procs)

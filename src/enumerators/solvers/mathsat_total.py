@@ -93,7 +93,7 @@ class MathSATTotalEnumerator(SMTEnumerator):
         """Returns the converter used for the normalization of T-atoms"""
         return self._converter
 
-    def get_converted_atoms(self, atoms: Iterable[FNode]) -> list[FNode]:
+    def get_converted_atoms(self, atoms: Iterable[FNode]) -> list[mathsat.msat_term]:
         """Returns a list of normalized atoms
 
         Args:
