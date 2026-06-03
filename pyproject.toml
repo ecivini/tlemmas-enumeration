@@ -22,6 +22,7 @@ dependencies = [
   "allsat_cnf @ git+https://github.com/masinag/allsat-cnf@main",
   "PySMT==0.9.7.dev333",
   "pytest>=9.0.0",
+  "tqdm>=4.67.3",
 ]
 
 [dependency-groups]

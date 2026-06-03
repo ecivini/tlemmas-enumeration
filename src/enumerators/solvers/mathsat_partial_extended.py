@@ -5,6 +5,7 @@ import time
 from typing import Protocol, cast
 
 import mathsat
+import tqdm
 from allsat_cnf.polarity_cnfizer import PolarityCNFizer
 from pysmt.environment import Environment
 from pysmt.fnode import FNode
@@ -224,6 +225,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
         parallel_procs: int = 1,
         divide_strategy: type[DivideStrategy] = DivideByPartialAllSMTStrategy,
         maxtasksperchild: int = 20,
+        show_progress: bool = False,
     ):
         super().__init__(computation_logger=computation_logger)
         if parallel_procs < 1 or parallel_procs > multiprocessing.cpu_count():
@@ -235,6 +237,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
         self._parallel_procs = parallel_procs
         self._divide_strategy = divide_strategy
         self._maxtasksperchild = maxtasksperchild
+        self._show_progress = show_progress
 
     def reset(self):
         self.solver_total.reset_assertions()
@@ -271,7 +274,7 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
             self.solver_total.add_assertions(self._tlemmas)
             converted_atoms = get_converted_atoms(atoms, self._converter_total)
 
-            for m in partial_models:
+            for m in tqdm.tqdm(partial_models, desc="Solving subproblems", disable=not self._show_progress):
                 self.solver_total.push()
                 self.solver_total.add_assertions(m)
 
@@ -322,8 +325,11 @@ class MathSATExtendedPartialEnumerator(SMTEnumerator):
             ) as pool:
                 # Use imap_unordered to process results as they complete
                 total_deserialization_time = 0.0
-                for worker_enc_models, work_model_count, worker_enc_tlemmas in pool.imap_unordered(
-                    _parallel_worker, enc_partial_models
+                for worker_enc_models, work_model_count, worker_enc_tlemmas in tqdm.tqdm(
+                    pool.imap_unordered(_parallel_worker, enc_partial_models),
+                    desc="Solving subproblems",
+                    total=len(enc_partial_models),
+                    disable=not self._show_progress,
                 ):
                     start_time = time.time()
                     self._models.extend([atom_manager.decode_model(model) for model in worker_enc_models])
