@@ -1,5 +1,5 @@
 from pysmt.shortcuts import Symbol, REAL
-from enumerators.solvers.mathsat_partial_extended import MathSATExtendedPartialEnumerator
+from enumerators.solvers.mathsat_divide_and_conquer import MathSATDivideAndConquerEnumerator
 
 # Create variables
 x = Symbol("x", REAL)
@@ -10,7 +10,7 @@ phi = (x + y >= 1) | (x + y <= 0)
 
 # Enumerate using AllSMT enumeration
 parallel_workers = 4
-enumerator = MathSATExtendedPartialEnumerator(parallel_procs=parallel_workers)
+enumerator = MathSATDivideAndConquerEnumerator(parallel_procs=parallel_workers)
 result = enumerator.check_all_sat(phi)
 
 # Get the theory lemmas

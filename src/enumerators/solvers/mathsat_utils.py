@@ -1,5 +1,6 @@
 from io import StringIO
 
+from mathsat import msat_term
 from pysmt.environment import Environment
 from pysmt.formula import FormulaManager
 
@@ -127,3 +128,8 @@ class AtomManager:
     def decode_clause(self, clause: EncodedClause) -> FNode:
         known, new = clause
         return self.mgr.Or([self.decode_literal(v) for v in (*known, *new)])
+
+
+def get_converted_atoms(atoms, converter) -> list[msat_term]:
+    """Returns a list of normalized atoms"""
+    return [converter.convert(a) for a in atoms]
