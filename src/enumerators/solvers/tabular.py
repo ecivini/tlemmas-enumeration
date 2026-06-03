@@ -3,23 +3,23 @@
 import os
 import re
 import subprocess
-
 import sys
-from typing import List, Dict
+from pathlib import Path
+
 from pysmt.fnode import FNode
+from pysmt.shortcuts import write_smtlib
+
+from enumerators.formula import get_normalized, read_phi
 
 # from allsat_cnf.polarity_cnfizer import PolarityCNFizer
-from enumerators.constants import (
-    SAT,
-    UNSAT,
-    TABULAR_ALLSMT_COMMAND as _TABULAR_ALLSMT_COMMAND,
-    TLEMMAS_FILE_REGEX as _TLEMMAS_FILE_REGEX,
-)
-
 # only used for normalization
 from enumerators.solvers.mathsat_total import MathSATTotalEnumerator as _Enumerator
 from enumerators.solvers.solver import SMTEnumerator
-from enumerators.formula import get_normalized, save_phi, read_phi
+
+LIBRARY_PATH = Path(__file__).resolve().parent.parent
+
+_TABULAR_ALLSMT_COMMAND = LIBRARY_PATH / "bin" / "tabular" / "tabularAllSMT.bin"
+_TLEMMAS_FILE_REGEX = "tlemma_[0-9]+.smt2"
 
 
 class TabularSMTSolver(SMTEnumerator):
@@ -47,14 +47,12 @@ class TabularSMTSolver(SMTEnumerator):
         self._atoms = []
         self._is_partial = is_partial
 
-    def check_all_sat(
-        self, phi: FNode, boolean_mapping: Dict[FNode, FNode] | None = None
-    ) -> bool:
+    def check_all_sat(self, phi: FNode, boolean_mapping: dict[FNode, FNode] | None = None) -> bool:
         """Computes All-SMT for the SMT-formula phi using partial assignment and Tsetsin CNF-ization
 
         Args:
             phi (FNode): a pysmt formula
-            boolean_mapping (Dict[FNode, FNode]) [None]: unused, for compatibility with SMTSolver
+            boolean_mapping (dict[FNode, FNode]) [None]: unused, for compatibility with SMTSolver
         """
         self.check_supports(phi)
         # there may be some previously saved t-lemmas from a crashed run
@@ -76,7 +74,7 @@ class TabularSMTSolver(SMTEnumerator):
         # save normalized phi on temporary smt file
         phi_file = "temp_phi.smt"
         # save_phi(phi_tsetsin, phi_file)
-        save_phi(normal_phi, phi_file)
+        write_smtlib(normal_phi, phi_file)
 
         if self._is_partial:
             minimize_models = "true"
@@ -138,14 +136,14 @@ class TabularSMTSolver(SMTEnumerator):
         # os.remove(output_file)
 
         if len(self._models) == 0:
-            return UNSAT
-        return SAT
+            return False
+        return True
 
-    def get_theory_lemmas(self) -> List[FNode]:
+    def get_theory_lemmas(self) -> list[FNode]:
         """Returns the theory lemmas found during the All-SAT computation"""
         return self._tlemmas
 
-    def get_models(self) -> List:
+    def get_models(self) -> list[int]:
         """Returns the models found during the All-SAT computation"""
         return self._models
 

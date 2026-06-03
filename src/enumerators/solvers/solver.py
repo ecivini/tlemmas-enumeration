@@ -40,7 +40,7 @@ class SMTEnumerator(ABC):
             store_models (bool) [False]: if True, the models found during All-SMT are stored
 
         Returns:
-            bool: SAT or UNSAT, depending on satisfiability of phi
+            bool: whether phi is satisfiable or not
         """
         pass
 

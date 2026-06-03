@@ -7,7 +7,6 @@ from pysmt.fnode import FNode
 from pysmt.shortcuts import Solver
 from pysmt.solvers.msat import MathSAT5Solver
 
-from enumerators.constants import SAT, UNSAT
 from enumerators.formula import get_theory_atoms
 from enumerators.solvers.mathsat_divide_and_conquer.conquer import initialize_worker, parallel_worker
 from enumerators.solvers.mathsat_divide_and_conquer.divide import (
@@ -80,7 +79,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             self._computation_logger["Partial models"] = len(partial_models)
 
         if len(partial_models) == 0:
-            return UNSAT
+            return False
 
         if self._parallel_procs <= 1:
             self.solver_total.add_assertion(phi)
@@ -162,7 +161,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         if self._computation_logger is not None:
             self._computation_logger["Total models"] = self._models_count
 
-        return SAT
+        return True
 
     def get_theory_lemmas(self) -> list[FNode]:
         """Returns the theory lemmas found during the All-SAT computation"""
