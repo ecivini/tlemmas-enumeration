@@ -11,10 +11,13 @@ from enumerators.solvers.mathsat_divide_and_conquer.ranking import rank_atoms_by
 from enumerators.solvers.mathsat_utils import (
     MSAT_PARTIAL_ENUM_OPTIONS,
     MSAT_TOTAL_ENUM_OPTIONS,
+    AtomManager,
+    EncodedClause,
+    EncodedModel,
     allsat_callback_store,
     get_converted_atoms,
 )
-from enumerators.util.pysmt import SuspendTypeChecking
+from enumerators.util.pysmt import SuspendNodeStoring, SuspendTypeChecking
 from enumerators.walkers.normalizer import NormalizerWalker
 
 
@@ -26,21 +29,22 @@ class DivideStrategy(Protocol):
     """
 
     def __call__(
-        self, phi: FNode, atoms: list[FNode], norm: NormalizerWalker, **kwargs
-    ) -> tuple[list[list[FNode]], list[FNode]]:
+        self, phi: FNode, atoms: list[FNode], norm: NormalizerWalker, atom_manager: AtomManager, **kwargs
+    ) -> tuple[list[EncodedModel], list[EncodedClause]]:
         """Partition the search space.
 
         Args:
             phi: Formula to partition.
             atoms: Atoms to consider for the division.
             norm: Normalizer for T-atoms in assignments and and lemmas.
+            atom_manager: AtomManager for encoding models and lemmas.
             **kwargs: Additional implementation-specific parameters.
 
         Returns:
-            A tuple ``(partial_assignments, tlemmas)`` where
-            ``partial_assignments`` is a list of partial assignments covering
-            the search space of ``phi``, and ``tlemmas`` are theory lemmas
-            learned during the division.
+            A tuple ``(encoded_assignments, encoded_tlemmas)`` where
+            ``encoded_assignments`` is a list of encoded partial assignments
+            covering the search space of ``phi``, and ``encoded_tlemmas``
+            are encoded theory lemmas learned during the division.
         """
         ...
 
@@ -49,21 +53,22 @@ class DivideByPartialAllSMTStrategy(DivideStrategy):
     """Divide strategy that uses MathSAT's partial All-SMT enumeration."""
 
     def __call__(
-        self, phi: FNode, atoms: list[FNode], norm: NormalizerWalker, **kwargs
-    ) -> tuple[list[list[FNode]], list[FNode]]:
+        self, phi: FNode, atoms: list[FNode], norm: NormalizerWalker, atom_manager: AtomManager, **kwargs
+    ) -> tuple[list[EncodedModel], list[EncodedClause]]:
         """Partition the search space via partial All-SMT.
 
         Args:
             phi: Formula to partition (will be CNFized internally).
             atoms: Atoms to enumerate over.
             norm: Normalizer for T-atoms and lemmas.
+            atom_manager: AtomManager for encoding.
             **kwargs: Ignored (present for Protocol compatibility).
 
         Returns:
-            A tuple ``(partial_assignments, tlemmas)`` where
-            ``partial_assignments`` is a list of partial assignments covering
-            the search space of ``phi``, and ``tlemmas`` are theory lemmas
-            learned during the division.
+            A tuple ``(encoded_assignments, encoded_tlemmas)`` where
+            ``encoded_assignments`` is a list of encoded partial assignments
+            covering the search space of ``phi``, and ``encoded_tlemmas``
+            are encoded theory lemmas learned during the division.
         """
         phi = PolarityCNFizer(nnf=True, mutex_nnf_labels=True).convert_as_formula(phi)
         partial_models = []
@@ -77,11 +82,17 @@ class DivideByPartialAllSMTStrategy(DivideStrategy):
                 callback=lambda model: allsat_callback_store(model, converter, partial_models),
             )
 
-            with SuspendTypeChecking():
-                tlemmas = [norm.normalize(converter.back(lemma)) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
-                partial_models = [[norm.normalize(literal) for literal in model] for model in partial_models]
+            with SuspendTypeChecking(), SuspendNodeStoring():
+                tlemmas_encoded = [
+                    atom_manager.encode_clause(norm.normalize(converter.back(lemma)))
+                    for lemma in mathsat.msat_get_theory_lemmas(msat_env)
+                ]
+                partial_models_encoded = [
+                    atom_manager.encode_model([norm.normalize(literal) for literal in model])
+                    for model in partial_models
+                ]
 
-        return partial_models, tlemmas
+        return partial_models_encoded, tlemmas_encoded
 
 
 class DivideByProjectedEnumerationStrategy(DivideStrategy):
@@ -126,16 +137,18 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
         phi: FNode,
         atoms: list[FNode],
         norm: NormalizerWalker,
+        atom_manager: AtomManager,
         n_workers: int = 0,
         show_progress: bool = False,
         **kwargs,
-    ) -> tuple[list[list[FNode]], list[FNode]]:
+    ) -> tuple[list[EncodedModel], list[EncodedClause]]:
         """Partition the search space via incremental projected enumeration.
 
         Args:
             phi: Formula to partition.
             atoms: Atoms to consider for the division.
             norm: Normalizer for T-atoms in assignments and lemmas.
+            atom_manager: AtomManager for encoding.
             n_workers: Number of parallel workers.  Used only when the
                 strategy was constructed with ``min_cubes=0`` to derive the
                 target number of cubes as ``n_workers * 20``.
@@ -144,16 +157,16 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             **kwargs: Additional implementation-specific parameters.
 
         Returns:
-            A tuple ``(partial_assignments, tlemmas)`` where
-            ``partial_assignments`` is a list of partial assignments covering
-            the search space of ``phi``, and ``tlemmas`` are theory lemmas
-            learned during the division.
+            A tuple ``(encoded_assignments, encoded_tlemmas)`` where
+            ``encoded_assignments`` is a list of encoded partial assignments
+            covering the search space of ``phi``, and ``encoded_tlemmas``
+            are encoded theory lemmas learned during the division.
         """
         min_cubes = self.compute_min_cubes(n_workers)
         atoms = rank_atoms_by_hub_centrality(atoms)
 
         cubes: list[list[FNode]] = [[]]
-        tlemmas: set[FNode] = set()
+        tlemmas_raw: set[mathsat.msat_term] = set()
         with Solver("msat", solver_options=MSAT_TOTAL_ENUM_OPTIONS) as solver:
             solver.add_assertion(phi)
             converter = solver.converter
@@ -173,7 +186,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
                         get_converted_atoms(atoms_to_project, converter),
                         callback=lambda model: allsat_callback_store(model, converter, cube_extensions),
                     )
-                    tlemmas.update(mathsat.msat_get_theory_lemmas(msat_env))
+                    tlemmas_raw.update(mathsat.msat_get_theory_lemmas(msat_env))
                     next_gen.extend([cube + cube_ext for cube_ext in cube_extensions])
                     solver.pop()
                 if not next_gen:
@@ -187,11 +200,15 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
                 cubes = next_gen
                 batch_begin = batch_end
                 batch_end = batch_begin + batch_size
-            with SuspendTypeChecking():
-                normalized_tlemmas = [norm.normalize(converter.back(lemma)) for lemma in tlemmas]
-                cubes = [[norm.normalize(literal) for literal in model] for model in cubes]
+            with SuspendTypeChecking(), SuspendNodeStoring():
+                tlemmas_encoded = [
+                    atom_manager.encode_clause(norm.normalize(converter.back(lemma))) for lemma in tlemmas_raw
+                ]
+                cubes_encoded = [
+                    atom_manager.encode_model([norm.normalize(literal) for literal in model]) for model in cubes
+                ]
 
-        return cubes, normalized_tlemmas
+        return cubes_encoded, tlemmas_encoded
 
     @staticmethod
     def _next_batch_size(
