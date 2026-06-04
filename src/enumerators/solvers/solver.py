@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 
 from pysmt.fnode import FNode
 
+from enumerators.util.timer import Timer
 from enumerators.walkers.term_ite_checker import TermIteChecker
 
 
@@ -16,6 +17,7 @@ class SMTEnumerator(ABC):
     def __init__(self, computation_logger: dict | None = None):
         self._tlemmas = []
         self._computation_logger = computation_logger
+        self._timer = Timer(computation_logger)
 
     @property
     def computation_logger(self) -> dict | None:

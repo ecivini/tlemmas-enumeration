@@ -9,6 +9,7 @@ from pysmt.shortcuts import And
 from enumerators.formula import get_theory_atoms
 from enumerators.solvers.solver import SMTEnumerator
 from enumerators.util.pysmt import SuspendTypeChecking
+from enumerators.util.timer import Timer
 from enumerators.walkers.and_flattener import AndFlattener
 
 
@@ -143,24 +144,23 @@ class WithPartitioningWrapper(SMTEnumerator):
         atoms = phi.get_atoms() if atoms is None else atoms
         atoms = get_theory_atoms(atoms)
         # Partition atoms based on their variables
-        start_time = time.time()
-        partitions = partition_atoms(atoms)
+        timer = Timer(self._computation_logger)
+        with timer.track_time("Partitioning time"):
+            partitions = partition_atoms(atoms)
 
-        # partition the formula based on the And-conjoined components
-        component_to_atoms, atom_to_components = {}, {}
-        if self._partition_on_formula_components:
-            component_to_atoms, atom_to_components = get_conjoined_components(phi)
+            # partition the formula based on the And-conjoined components
+            component_to_atoms, atom_to_components = {}, {}
+            if self._partition_on_formula_components:
+                component_to_atoms, atom_to_components = get_conjoined_components(phi)
 
-        end_time = time.time()
         if self._computation_logger is not None:
-            self._computation_logger["Partitioning time"] = end_time - start_time
             self._computation_logger["Number of partitions"] = len(partitions)
 
         # Solve each partition separately
         overall_result = True
         partitions_loggers: list[dict] = []
         for part_atoms in sorted(partitions, key=lambda x: len(x)):
-            start_time = time.time()
+            iter_start = time.perf_counter_ns()
             print("Solving partition with {} atoms...".format(len(part_atoms)))
             self._base_solver.reset()
             if self._computation_logger is not None:
@@ -190,8 +190,7 @@ class WithPartitioningWrapper(SMTEnumerator):
             self._models_count += self._base_solver.get_models_count()
             if store_models:
                 self._models.extend(self._base_solver.get_models())
-            end_time = time.time()
-            print("Partition solved in {:.2f} seconds.".format(end_time - start_time))
+            print("Partition solved in {:.2f} seconds.".format((time.perf_counter_ns() - iter_start) / 1e9))
         if self._computation_logger is not None:
             self._computation_logger["Partitions"] = partitions_loggers
             # Restore base solver's computation logger after changing it for each partition
