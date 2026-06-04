@@ -1,7 +1,8 @@
-from collections import defaultdict
+from collections import Counter, defaultdict
 from io import StringIO
 from typing import Iterable, TypeAlias
 
+import tqdm
 from mathsat import msat_term
 from pysmt.environment import Environment
 from pysmt.fnode import FNode
@@ -138,29 +139,39 @@ class AtomManager:
 
 def remove_subsumed_clauses(clauses: Iterable[EncodedClause]) -> list[EncodedClause]:
     sorted_clauses = sorted(clauses, key=lambda c: len(c[0]) + len(c[1]))
+    result, result_known, result_unknown = [], [], []
+    known_occ, unknown_occ = Counter(), Counter()
+    known_index, unknown_index = defaultdict(set), defaultdict(set)
+    empty_known, empty_unknown = set(), set()
 
-    result: list[EncodedClause] = []
-    result_sets: list[tuple[frozenset[int], frozenset[str]]] = []
-    # Index by the minimum known literal of each result clause
-    index: defaultdict[int, list[int]] = defaultdict(list)
-    empty_known: list[int] = []  # result clauses with empty known
-
-    for known, unknown in sorted_clauses:
+    for known, unknown in tqdm.tqdm(sorted_clauses, desc="Removing subsumed clauses"):
         ks, us = frozenset(known), frozenset(unknown)
 
-        # A subsuming R must have min(R.known) \in ks (since R.known \subseteq ks)
-        candidates = [i for lit in ks for i in index[lit]] + empty_known
+        cands_k = set(empty_known)
+        for lit in ks:
+            cands_k |= known_index[lit]
+        cands_u = set(empty_unknown)
+        for lit in us:
+            cands_u |= unknown_index[lit]
+        candidates = cands_k & cands_u
 
-        if any(result_sets[i][0].issubset(ks) and result_sets[i][1].issubset(us) for i in dict.fromkeys(candidates)):
+        if any(result_known[i].issubset(ks) and result_unknown[i].issubset(us) for i in candidates):
             continue
 
         idx = len(result)
         result.append((known, unknown))
-        result_sets.append((ks, us))
+        result_known.append(ks)
+        result_unknown.append(us)
+        known_occ.update(ks)
+        unknown_occ.update(us)
         if ks:
-            index[min(ks)].append(idx)
+            known_index[min(ks, key=lambda lit: known_occ[lit])].add(idx)
         else:
-            empty_known.append(idx)
+            empty_known.add(idx)
+        if us:
+            unknown_index[min(us, key=lambda lit: unknown_occ[lit])].add(idx)
+        else:
+            empty_unknown.add(idx)
 
     return result
 
