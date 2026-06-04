@@ -8,6 +8,7 @@ from pysmt.shortcuts import (
 from pysmt.fnode import FNode
 
 from enumerators.util.custom_exceptions import FormulaException
+from enumerators.util.pysmt import SuspendTypeChecking
 from enumerators.walkers.normalizer import NormalizerWalker
 
 
@@ -42,7 +43,8 @@ def get_normalized(phi: FNode, converter) -> FNode:
     if not isinstance(phi, FNode):
         raise TypeError("Expected FNode found " + str(type(phi)))
     walker = NormalizerWalker(converter)
-    return walker.normalize(phi)
+    with SuspendTypeChecking():
+        return walker.normalize(phi)
 
 
 def get_theory_atoms(atoms: Collection[FNode]) -> list[FNode]:

@@ -1,15 +1,15 @@
 from io import StringIO
+from typing import TypeAlias
 
 from mathsat import msat_term
 from pysmt.environment import Environment
-from pysmt.formula import FormulaManager
-
-from pysmt.shortcuts import get_env
 from pysmt.fnode import FNode
+from pysmt.formula import FormulaManager
+from pysmt.shortcuts import get_env
 from pysmt.smtlib.parser import SmtLibParser
 from pysmt.smtlib.script import smtlibscript_from_formula
 
-from typing import TypeAlias
+from enumerators.util.pysmt import SuspendTypeChecking
 
 MSAT_ENUM_OPTIONS = {
     "model_generation": "false",  # force to false so to avoid unnecessary lemmas
@@ -42,7 +42,8 @@ def allsat_callback_count(models: list[int]):
 
 def allsat_callback_store(model, converter, models):
     """callback for partial all-sat"""
-    py_model = [converter.back(v) for v in model]
+    with SuspendTypeChecking():
+        py_model = [converter.back(v) for v in model]
     models.append(py_model)
     return 1
 

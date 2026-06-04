@@ -42,14 +42,16 @@ def initialize_worker(
     contextualizer = FormulaContextualizer()
     normalizer = NormalizerWalker(converter)
 
-    all_atoms = [normalizer.normalize(contextualizer.walk(atom)) for atom in all_atoms]
-    _ATOM_MANAGER = AtomManager(all_atoms, env)
-    _MSAT_PROJ_ATOMS = get_converted_atoms([_ATOM_MANAGER.decode_literal(atom) for atom in proj_atoms], converter)
+    with SuspendTypeChecking():
+        all_atoms = [normalizer.normalize(contextualizer.walk(atom)) for atom in all_atoms]
+        _ATOM_MANAGER = AtomManager(all_atoms, env)
+        _MSAT_PROJ_ATOMS = get_converted_atoms([_ATOM_MANAGER.decode_literal(atom) for atom in proj_atoms], converter)
 
     phi = contextualizer.walk(phi)
     solver.add_assertion(phi)
-    for encoded_tlemma in tlemmas:
-        solver.add_assertion(_ATOM_MANAGER.decode_clause(encoded_tlemma))
+    with SuspendTypeChecking(), SuspendNodeStoring():
+        for encoded_tlemma in tlemmas:
+            solver.add_assertion(_ATOM_MANAGER.decode_clause(encoded_tlemma))
 
 
 def parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[EncodedClause]]:
