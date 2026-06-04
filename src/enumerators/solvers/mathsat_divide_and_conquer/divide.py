@@ -14,6 +14,7 @@ from enumerators.solvers.mathsat_utils import (
     allsat_callback_store,
     get_converted_atoms,
 )
+from enumerators.util.pysmt import SuspendTypeChecking
 from enumerators.walkers.normalizer import NormalizerWalker
 
 
@@ -76,8 +77,9 @@ class DivideByPartialAllSMTStrategy(DivideStrategy):
                 callback=lambda model: allsat_callback_store(model, converter, partial_models),
             )
 
-            tlemmas = [norm.normalize(converter.back(lemma)) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
-            partial_models = [[norm.normalize(literal) for literal in model] for model in partial_models]
+            with SuspendTypeChecking():
+                tlemmas = [norm.normalize(converter.back(lemma)) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
+                partial_models = [[norm.normalize(literal) for literal in model] for model in partial_models]
 
         return partial_models, tlemmas
 
@@ -185,8 +187,9 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
                 cubes = next_gen
                 batch_begin = batch_end
                 batch_end = batch_begin + batch_size
-        normalized_tlemmas = [norm.normalize(converter.back(lemma)) for lemma in tlemmas]
-        cubes = [[norm.normalize(literal) for literal in model] for model in cubes]
+            with SuspendTypeChecking():
+                normalized_tlemmas = [norm.normalize(converter.back(lemma)) for lemma in tlemmas]
+                cubes = [[norm.normalize(literal) for literal in model] for model in cubes]
 
         return cubes, normalized_tlemmas
 

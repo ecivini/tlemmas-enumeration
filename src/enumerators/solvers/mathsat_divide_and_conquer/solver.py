@@ -21,6 +21,7 @@ from enumerators.solvers.mathsat_utils import (
     get_converted_atoms,
 )
 from enumerators.solvers.solver import SMTEnumerator
+from enumerators.util.pysmt import SuspendTypeChecking
 from enumerators.walkers.normalizer import NormalizerWalker
 
 
@@ -41,6 +42,8 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             replaced.
         show_progress: Whether to display ``tqdm`` progress bars during
             the divide and total enumeration phases.
+        use_divide_tlemmas: Whether to pass the lemmas learned during the divide phase to the
+            worker processes.
     """
 
     def __init__(
@@ -51,6 +54,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         divide_strategy: DivideStrategy | None = None,
         maxtasksperchild: int = 20,
         show_progress: bool = False,
+        use_divide_tlemmas: bool = False,
     ):
         super().__init__(computation_logger=computation_logger)
         if parallel_procs < 1 or parallel_procs > multiprocessing.cpu_count():
@@ -63,6 +67,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         self._divide_strategy = divide_strategy if divide_strategy is not None else DivideByPartialAllSMTStrategy()
         self._maxtasksperchild = maxtasksperchild
         self._show_progress = show_progress
+        self._use_divide_tlemmas = use_divide_tlemmas
 
     def reset(self):
         self._solver_total.reset_assertions()
@@ -92,7 +97,8 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         msat_env = self._solver_total.msat_env()
 
         is_sat = self._solver_total.is_sat(phi)
-        self._tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
+        with SuspendTypeChecking():
+            self._tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
         if not is_sat:
             return False
 
@@ -107,7 +113,11 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         normalizer = NormalizerWalker(converter)
         start_time = time.time()
         partial_models, tlemmas = self._divide_strategy(
-            phi, atoms, normalizer, n_workers=self._parallel_procs, show_progress=self._show_progress
+            phi,
+            atoms,
+            normalizer,
+            n_workers=self._parallel_procs,
+            show_progress=self._show_progress,
         )
         self._tlemmas.extend(tlemmas)
 
@@ -120,7 +130,8 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
 
         if self._parallel_procs <= 1:
             self._solver_total.add_assertion(phi)
-            self._solver_total.add_assertions(self._tlemmas)
+            if self._use_divide_tlemmas:
+                self._solver_total.add_assertions(self._tlemmas)
             converted_atoms = get_converted_atoms(atoms, self._converter_total)
 
             for m in tqdm.tqdm(partial_models, desc="Solving subproblems", disable=not self._show_progress):
@@ -145,10 +156,11 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
                     )
                     self._models_count += models_count_l[0]
 
-                tlemmas_total = [
-                    self._converter_total.back(lemma)
-                    for lemma in mathsat.msat_get_theory_lemmas(self._solver_total.msat_env())
-                ]
+                with SuspendTypeChecking():
+                    tlemmas_total = [
+                        self._converter_total.back(lemma)
+                        for lemma in mathsat.msat_get_theory_lemmas(self._solver_total.msat_env())
+                    ]
 
                 self._tlemmas += tlemmas_total
                 self._solver_total.pop()
@@ -165,10 +177,14 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             enc_tlemmas = [atom_manager.encode_clause(lemma) for lemma in self._tlemmas]
             new_tlemmas: list[FNode] = []
             seen_tlemmas = set(enc_tlemmas)
+            if self._use_divide_tlemmas:
+                worker_tlemmas = enc_tlemmas
+            else:
+                worker_tlemmas = []
             with multiprocessing.Pool(
                 processes=self._parallel_procs,
                 initializer=initialize_worker,
-                initargs=(phi, all_atoms, proj_atoms, enc_tlemmas, MSAT_TOTAL_ENUM_OPTIONS, store_models),
+                initargs=(phi, all_atoms, proj_atoms, worker_tlemmas, MSAT_TOTAL_ENUM_OPTIONS, store_models),
                 maxtasksperchild=self._maxtasksperchild,
             ) as pool:
                 total_deserialization_time = 0.0
