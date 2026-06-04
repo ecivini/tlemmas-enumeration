@@ -68,7 +68,9 @@ class MathSATTotalEnumerator(SMTEnumerator):
             self._models_count = models_count_l[0]
 
         with SuspendTypeChecking():
-            self._tlemmas = [self._converter.back(l) for l in mathsat.msat_get_theory_lemmas(self._solver.msat_env())]
+            self._tlemmas = [
+                self._converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(self._solver.msat_env())
+            ]
 
         if self._models_count == 0:
             return False
