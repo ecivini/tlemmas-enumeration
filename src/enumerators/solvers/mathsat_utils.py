@@ -137,45 +137,6 @@ class AtomManager:
         return self.mgr.Or([self.decode_literal(v) for v in (*known, *new)])
 
 
-def remove_subsumed_clauses(clauses: Iterable[EncodedClause]) -> list[EncodedClause]:
-    sorted_clauses = sorted(clauses, key=lambda c: len(c[0]) + len(c[1]))
-    result, result_known, result_unknown = [], [], []
-    known_occ, unknown_occ = Counter(), Counter()
-    known_index, unknown_index = defaultdict(set), defaultdict(set)
-    empty_known, empty_unknown = set(), set()
-
-    for known, unknown in tqdm.tqdm(sorted_clauses, desc="Removing subsumed clauses"):
-        ks, us = frozenset(known), frozenset(unknown)
-
-        cands_k = set(empty_known)
-        for lit in ks:
-            cands_k |= known_index[lit]
-        cands_u = set(empty_unknown)
-        for lit in us:
-            cands_u |= unknown_index[lit]
-        candidates = cands_k & cands_u
-
-        if any(result_known[i].issubset(ks) and result_unknown[i].issubset(us) for i in candidates):
-            continue
-
-        idx = len(result)
-        result.append((known, unknown))
-        result_known.append(ks)
-        result_unknown.append(us)
-        known_occ.update(ks)
-        unknown_occ.update(us)
-        if ks:
-            known_index[min(ks, key=lambda lit: known_occ[lit])].add(idx)
-        else:
-            empty_known.add(idx)
-        if us:
-            unknown_index[min(us, key=lambda lit: unknown_occ[lit])].add(idx)
-        else:
-            empty_unknown.add(idx)
-
-    return result
-
-
 def get_converted_atoms(atoms, converter) -> list[msat_term]:
     """Returns a list of normalized atoms"""
     return [converter.convert(a) for a in atoms]

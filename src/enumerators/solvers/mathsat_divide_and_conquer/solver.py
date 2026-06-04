@@ -20,7 +20,6 @@ from enumerators.solvers.mathsat_utils import (
     allsat_callback_count,
     allsat_callback_store,
     get_converted_atoms,
-    remove_subsumed_clauses,
 )
 from enumerators.solvers.solver import SMTEnumerator
 from enumerators.util.pysmt import SuspendNodeStoring, SuspendTypeChecking
@@ -136,10 +135,8 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             else:
                 self.conquer_parallel(phi, atoms, seen_tlemmas, divide_enc_models, atom_manager, store_models)
 
-        with self._timer.track_time("Remove redundancies time"):
-            tlemmas_no_redundancy = remove_subsumed_clauses(seen_tlemmas)
         with SuspendTypeChecking(), self._timer.track_time("Decoding tlemmas time"):
-            self._tlemmas = [atom_manager.decode_clause(c) for c in tlemmas_no_redundancy]
+            self._tlemmas = [atom_manager.decode_clause(lemma) for lemma in seen_tlemmas]
 
         if self._computation_logger is not None:
             self._computation_logger["Total models"] = self._models_count
