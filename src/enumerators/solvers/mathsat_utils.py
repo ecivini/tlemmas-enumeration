@@ -1,15 +1,16 @@
+from collections import defaultdict
 from io import StringIO
+from typing import TypeAlias
 
 from mathsat import msat_term
 from pysmt.environment import Environment
-from pysmt.formula import FormulaManager
-
-from pysmt.shortcuts import get_env
 from pysmt.fnode import FNode
+from pysmt.formula import FormulaManager
+from pysmt.shortcuts import get_env
 from pysmt.smtlib.parser import SmtLibParser
 from pysmt.smtlib.script import smtlibscript_from_formula
 
-from typing import TypeAlias
+from enumerators.util.pysmt import SuspendTypeChecking
 
 MSAT_ENUM_OPTIONS = {
     "model_generation": "false",  # force to false so to avoid unnecessary lemmas
@@ -42,7 +43,8 @@ def allsat_callback_count(models: list[int]):
 
 def allsat_callback_store(model, converter, models):
     """callback for partial all-sat"""
-    py_model = [converter.back(v) for v in model]
+    with SuspendTypeChecking():
+        py_model = [converter.back(v) for v in model]
     models.append(py_model)
     return 1
 
@@ -128,6 +130,35 @@ class AtomManager:
     def decode_clause(self, clause: EncodedClause) -> FNode:
         known, new = clause
         return self.mgr.Or([self.decode_literal(v) for v in (*known, *new)])
+
+
+def remove_subsumed_clauses(clauses: list[EncodedClause]) -> list[EncodedClause]:
+    sorted_clauses = sorted(clauses, key=lambda c: len(c[0]) + len(c[1]))
+
+    result: list[EncodedClause] = []
+    result_sets: list[tuple[frozenset[int], frozenset[str]]] = []
+    # Index by the minimum known literal of each result clause
+    index: defaultdict[int, list[int]] = defaultdict(list)
+    empty_known: list[int] = []  # result clauses with empty known
+
+    for known, unknown in sorted_clauses:
+        ks, us = frozenset(known), frozenset(unknown)
+
+        # A subsuming R must have min(R.known) \in ks (since R.known \subseteq ks)
+        candidates = [i for lit in ks for i in index[lit]] + empty_known
+
+        if any(result_sets[i][0].issubset(ks) and result_sets[i][1].issubset(us) for i in dict.fromkeys(candidates)):
+            continue
+
+        idx = len(result)
+        result.append((known, unknown))
+        result_sets.append((ks, us))
+        if ks:
+            index[min(ks)].append(idx)
+        else:
+            empty_known.append(idx)
+
+    return result
 
 
 def get_converted_atoms(atoms, converter) -> list[msat_term]:

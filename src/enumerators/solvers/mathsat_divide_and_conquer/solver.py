@@ -16,11 +16,14 @@ from enumerators.solvers.mathsat_divide_and_conquer.divide import (
 from enumerators.solvers.mathsat_utils import (
     MSAT_TOTAL_ENUM_OPTIONS,
     AtomManager,
+    EncodedClause,
     allsat_callback_count,
     allsat_callback_store,
     get_converted_atoms,
+    remove_subsumed_clauses,
 )
 from enumerators.solvers.solver import SMTEnumerator
+from enumerators.util.pysmt import SuspendTypeChecking
 from enumerators.walkers.normalizer import NormalizerWalker
 
 
@@ -41,6 +44,8 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             replaced.
         show_progress: Whether to display ``tqdm`` progress bars during
             the divide and total enumeration phases.
+        use_divide_tlemmas: Whether to pass the lemmas learned during the divide phase to the
+            worker processes.
     """
 
     def __init__(
@@ -51,6 +56,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         divide_strategy: DivideStrategy | None = None,
         maxtasksperchild: int = 20,
         show_progress: bool = False,
+        use_divide_tlemmas: bool = False,
     ):
         super().__init__(computation_logger=computation_logger)
         if parallel_procs < 1 or parallel_procs > multiprocessing.cpu_count():
@@ -63,6 +69,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         self._divide_strategy = divide_strategy if divide_strategy is not None else DivideByPartialAllSMTStrategy()
         self._maxtasksperchild = maxtasksperchild
         self._show_progress = show_progress
+        self._use_divide_tlemmas = use_divide_tlemmas
 
     def reset(self):
         self._solver_total.reset_assertions()
@@ -92,7 +99,8 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         msat_env = self._solver_total.msat_env()
 
         is_sat = self._solver_total.is_sat(phi)
-        self._tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
+        with SuspendTypeChecking():
+            self._tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
         if not is_sat:
             return False
 
@@ -106,24 +114,34 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
 
         normalizer = NormalizerWalker(converter)
         start_time = time.time()
-        partial_models, tlemmas = self._divide_strategy(
-            phi, atoms, normalizer, n_workers=self._parallel_procs, show_progress=self._show_progress
+        divide_models, divide_tlemmas = self._divide_strategy(
+            phi,
+            atoms,
+            normalizer,
+            n_workers=self._parallel_procs,
+            show_progress=self._show_progress,
         )
-        self._tlemmas.extend(tlemmas)
+
+        assert divide_models
+
+        all_atoms = list(
+            phi.get_atoms() | set(atoms) | {atom for lemma in divide_tlemmas for atom in lemma.get_atoms()}
+        )
+        atom_manager = AtomManager(all_atoms)
+        seen_tlemmas: set[EncodedClause] = {atom_manager.encode_clause(lemma) for lemma in divide_tlemmas}
 
         end_time = time.time()
         if self._computation_logger is not None:
             self._computation_logger["Partial AllSMT time"] = end_time - start_time
-            self._computation_logger["Partial models"] = len(partial_models)
-
-        assert partial_models
+            self._computation_logger["Partial models"] = len(divide_models)
 
         if self._parallel_procs <= 1:
             self._solver_total.add_assertion(phi)
-            self._solver_total.add_assertions(self._tlemmas)
+            if self._use_divide_tlemmas:
+                self._solver_total.add_assertions(divide_tlemmas)
             converted_atoms = get_converted_atoms(atoms, self._converter_total)
 
-            for m in tqdm.tqdm(partial_models, desc="Solving subproblems", disable=not self._show_progress):
+            for m in tqdm.tqdm(divide_models, desc="Solving subproblems", disable=not self._show_progress):
                 self._solver_total.push()
                 self._solver_total.add_assertions(m)
 
@@ -145,30 +163,21 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
                     )
                     self._models_count += models_count_l[0]
 
-                tlemmas_total = [
-                    self._converter_total.back(lemma)
-                    for lemma in mathsat.msat_get_theory_lemmas(self._solver_total.msat_env())
-                ]
-
-                self._tlemmas += tlemmas_total
+                with SuspendTypeChecking():
+                    tlemmas_total = [
+                        self._converter_total.back(lemma)
+                        for lemma in mathsat.msat_get_theory_lemmas(self._solver_total.msat_env())
+                    ]
+                seen_tlemmas.update(atom_manager.encode_clause(lemma) for lemma in tlemmas_total)
                 self._solver_total.pop()
-
-                self._solver_total.add_assertions(tlemmas_total)
-
         else:
-            all_atoms = list(
-                phi.get_atoms() | set(atoms) | {atom for lemma in self._tlemmas for atom in lemma.get_atoms()}
-            )
-            atom_manager = AtomManager(all_atoms)
             proj_atoms = [atom_manager.encode_literal(atom) for atom in atoms]
-            enc_partial_models = [atom_manager.encode_model(model) for model in partial_models]
-            enc_tlemmas = [atom_manager.encode_clause(lemma) for lemma in self._tlemmas]
-            new_tlemmas: list[FNode] = []
-            seen_tlemmas = set(enc_tlemmas)
+            enc_partial_models = [atom_manager.encode_model(model) for model in divide_models]
+            worker_tlemmas = list(seen_tlemmas) if self._use_divide_tlemmas else []
             with multiprocessing.Pool(
                 processes=self._parallel_procs,
                 initializer=initialize_worker,
-                initargs=(phi, all_atoms, proj_atoms, enc_tlemmas, MSAT_TOTAL_ENUM_OPTIONS, store_models),
+                initargs=(phi, all_atoms, proj_atoms, worker_tlemmas, MSAT_TOTAL_ENUM_OPTIONS, store_models),
                 maxtasksperchild=self._maxtasksperchild,
             ) as pool:
                 total_deserialization_time = 0.0
@@ -180,18 +189,15 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
                 ):
                     start_time = time.time()
                     self._models.extend([atom_manager.decode_model(model) for model in worker_enc_models])
-                    unique_tlemmas = set(worker_enc_tlemmas) - seen_tlemmas
-                    if unique_tlemmas:
-                        seen_tlemmas.update(unique_tlemmas)
-                        new_tlemmas.extend(atom_manager.decode_clause(lemma) for lemma in unique_tlemmas)
+                    seen_tlemmas.update(worker_enc_tlemmas)
                     total_deserialization_time += time.time() - start_time
                     self._models_count += work_model_count
                 if self._computation_logger is not None:
                     self._computation_logger["Total deserialization time"] = total_deserialization_time
 
-            self._tlemmas.extend(new_tlemmas)
-
-        self._tlemmas = list(set(self._tlemmas))
+        tlemmas_no_redundancy = remove_subsumed_clauses(seen_tlemmas)
+        with SuspendTypeChecking():
+            self._tlemmas = [atom_manager.decode_clause(c) for c in tlemmas_no_redundancy]
 
         if self._computation_logger is not None:
             self._computation_logger["Total models"] = self._models_count

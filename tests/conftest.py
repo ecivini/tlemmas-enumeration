@@ -1,3 +1,5 @@
+from itertools import product
+
 import pysmt.environment
 from pysmt.fnode import FNode
 import pytest
@@ -14,26 +16,36 @@ from enumerators.solvers import (
     WithPartitioningWrapper,
 )
 
+_DC_PROJ = [False, True]
+_DC_PROCS = [1, 8]
+_DC_STRATS = [DivideByPartialAllSMTStrategy, DivideByProjectedEnumerationStrategy]
+_DC_LEMMAS = [False, True]
+
 
 def pytest_runtest_setup():
     env: pysmt.environment.Environment = pysmt.environment.reset_env()
     env.enable_infix_notation = True
 
 
-# fmt: off
 SOLVERS = [
     ("total", MathSATTotalEnumerator, {"project_on_theory_atoms": False}),
     ("total-project", MathSATTotalEnumerator, {"project_on_theory_atoms": True}),
-    ("dc-1-div_strategy-partial", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 1, "divide_strategy": DivideByPartialAllSMTStrategy()}),
-    ("dc-1-div_strategy-project", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 1, "divide_strategy": DivideByProjectedEnumerationStrategy()}),
-    ("dc-project-1-div_strategy-partial", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 1, "divide_strategy": DivideByPartialAllSMTStrategy()}),
-    ("dc-project-1-div_strategy-project", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 1, "divide_strategy": DivideByProjectedEnumerationStrategy()}),
-    ("dc-8-div_strategy-partial", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 8, "divide_strategy": DivideByPartialAllSMTStrategy()}),
-    ("dc-8-div_strategy-project", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": False, "parallel_procs": 8, "divide_strategy": DivideByProjectedEnumerationStrategy()}),
-    ("dc-project-8-div_strategy-partial", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 8, "divide_strategy": DivideByPartialAllSMTStrategy()}),
-    ("dc-project-8-div_strategy-project", MathSATDivideAndConquerEnumerator, {"project_on_theory_atoms": True, "parallel_procs": 8, "divide_strategy": DivideByProjectedEnumerationStrategy()}),
+    *[
+        (
+            f"dc-{'proj' if proj else 'noproj'}-{procs}"
+            f"-divide-{'partial' if strat_cls is DivideByPartialAllSMTStrategy else 'project'}"
+            f"-{'lemmas' if store else 'nolemmas'}",
+            MathSATDivideAndConquerEnumerator,
+            {
+                "project_on_theory_atoms": proj,
+                "parallel_procs": procs,
+                "divide_strategy": strat_cls(),
+                "use_divide_tlemmas": store,
+            },
+        )
+        for proj, procs, strat_cls, store in product(_DC_PROJ, _DC_PROCS, _DC_STRATS, _DC_LEMMAS)
+    ],
 ]
-# fmt: on
 
 
 @pytest.fixture(params=SOLVERS, ids=lambda s: s[0])

@@ -7,12 +7,13 @@ from pysmt.fnode import FNode
 from pysmt.shortcuts import Solver
 
 from enumerators.formula import get_theory_atoms
-from enumerators.solvers.solver import SMTEnumerator
 from enumerators.solvers.mathsat_utils import (
     MSAT_TOTAL_ENUM_OPTIONS,
     allsat_callback_count,
     allsat_callback_store,
 )
+from enumerators.solvers.solver import SMTEnumerator
+from enumerators.util.pysmt import SuspendTypeChecking
 
 
 class MathSATTotalEnumerator(SMTEnumerator):
@@ -66,7 +67,10 @@ class MathSATTotalEnumerator(SMTEnumerator):
             )
             self._models_count = models_count_l[0]
 
-        self._tlemmas = [self._converter.back(l) for l in mathsat.msat_get_theory_lemmas(self._solver.msat_env())]
+        with SuspendTypeChecking():
+            self._tlemmas = [
+                self._converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(self._solver.msat_env())
+            ]
 
         if self._models_count == 0:
             return False
