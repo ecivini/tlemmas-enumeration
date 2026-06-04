@@ -73,7 +73,8 @@ def parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[Enc
     atom_manager = _ATOM_MANAGER
     assert atom_manager is not None
 
-    solver.add_assertions(atom_manager.decode_model(model))
+    with SuspendTypeChecking():
+        solver.add_assertions(atom_manager.decode_model(model))
 
     found_models: list[list[int]] = []
     found_models_count = 0
