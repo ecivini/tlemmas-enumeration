@@ -37,5 +37,4 @@ class NormalizerWalker(DagWalker):
         return self.mgr.create_node(formula.node_type(), tuple(args))
 
     def normalize(self, formula: FNode) -> FNode:
-        with SuspendTypeChecking(self.env):
-            return self.walk(formula)
+        return self.walk(formula)
