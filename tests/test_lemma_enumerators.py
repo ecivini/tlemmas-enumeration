@@ -194,10 +194,10 @@ def assert_phi_equiv_phi_and_lemmas(phi: FNode, phi_and_lemmas: FNode) -> None:
 
 
 def test_lemmas_correctness(
-    example: tuple[FNode, int, int, int], solver_info: tuple[SMTEnumerator, bool, bool, bool]
+    example: tuple[FNode, int, int, int], solver_info: tuple[SMTEnumerator, bool, bool]
 ) -> None:
     phi, mc, pmc, pamc = example
-    solver, is_projected, is_partitioner, stores_divide_tlemmas = solver_info
+    solver, is_projected, is_partitioner = solver_info
 
     converter = solver.get_converter()
     phi = get_normalized(phi, converter)

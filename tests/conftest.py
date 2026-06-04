@@ -78,13 +78,11 @@ def wsolver(solver: SMTEnumerator, request: pytest.FixtureRequest) -> SMTEnumera
 
 
 @pytest.fixture
-def solver_info(wsolver: SMTEnumerator) -> tuple[SMTEnumerator, bool, bool, bool]:
-    raw = getattr(wsolver, "_base_solver", wsolver)
+def solver_info(wsolver: SMTEnumerator) -> tuple[SMTEnumerator, bool, bool]:
     return (
         wsolver,
         getattr(wsolver, "_project_on_theory_atoms", False),
         isinstance(wsolver, WithPartitioningWrapper),
-        getattr(raw, "_use_divide_tlemmas", True),
     )
 
 

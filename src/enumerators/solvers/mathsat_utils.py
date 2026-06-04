@@ -1,3 +1,4 @@
+from collections import defaultdict
 from io import StringIO
 from typing import TypeAlias
 
@@ -129,6 +130,35 @@ class AtomManager:
     def decode_clause(self, clause: EncodedClause) -> FNode:
         known, new = clause
         return self.mgr.Or([self.decode_literal(v) for v in (*known, *new)])
+
+
+def remove_subsumed_clauses(clauses: list[EncodedClause]) -> list[EncodedClause]:
+    sorted_clauses = sorted(clauses, key=lambda c: len(c[0]) + len(c[1]))
+
+    result: list[EncodedClause] = []
+    result_sets: list[tuple[frozenset[int], frozenset[str]]] = []
+    # Index by the minimum known literal of each result clause
+    index: defaultdict[int, list[int]] = defaultdict(list)
+    empty_known: list[int] = []  # result clauses with empty known
+
+    for known, unknown in sorted_clauses:
+        ks, us = frozenset(known), frozenset(unknown)
+
+        # A subsuming R must have min(R.known) \in ks (since R.known \subseteq ks)
+        candidates = [i for lit in ks for i in index[lit]] + empty_known
+
+        if any(result_sets[i][0].issubset(ks) and result_sets[i][1].issubset(us) for i in dict.fromkeys(candidates)):
+            continue
+
+        idx = len(result)
+        result.append((known, unknown))
+        result_sets.append((ks, us))
+        if ks:
+            index[min(ks)].append(idx)
+        else:
+            empty_known.append(idx)
+
+    return result
 
 
 def get_converted_atoms(atoms, converter) -> list[msat_term]:
