@@ -1,6 +1,6 @@
 from collections import defaultdict
 from io import StringIO
-from typing import TypeAlias
+from typing import Iterable, TypeAlias
 
 from mathsat import msat_term
 from pysmt.environment import Environment
@@ -86,6 +86,10 @@ class AtomManager:
         self._parser = SmtLibParser(self.env)
 
     @property
+    def atoms(self) -> list[FNode]:
+        return list(self._idx_to_atom)
+
+    @property
     def mgr(self) -> FormulaManager:
         return self.env.formula_manager
 
@@ -132,7 +136,7 @@ class AtomManager:
         return self.mgr.Or([self.decode_literal(v) for v in (*known, *new)])
 
 
-def remove_subsumed_clauses(clauses: list[EncodedClause]) -> list[EncodedClause]:
+def remove_subsumed_clauses(clauses: Iterable[EncodedClause]) -> list[EncodedClause]:
     sorted_clauses = sorted(clauses, key=lambda c: len(c[0]) + len(c[1]))
 
     result: list[EncodedClause] = []
