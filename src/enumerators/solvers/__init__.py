@@ -1,6 +1,7 @@
 from enumerators.solvers.mathsat_divide_and_conquer import (
     DivideByPartialAllSMTStrategy,
     DivideByProjectedEnumerationStrategy,
+    DivideStrategy,
     MathSATDivideAndConquerEnumerator,
 )
 from enumerators.solvers.mathsat_total import MathSATTotalEnumerator
@@ -11,6 +12,7 @@ __all__ = [
     "SMTEnumerator",
     "MathSATTotalEnumerator",
     "MathSATDivideAndConquerEnumerator",
+    "DivideStrategy",
     "DivideByPartialAllSMTStrategy",
     "DivideByProjectedEnumerationStrategy",
     "WithPartitioningWrapper",
