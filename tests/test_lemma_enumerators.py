@@ -194,10 +194,10 @@ def assert_phi_equiv_phi_and_lemmas(phi: FNode, phi_and_lemmas: FNode) -> None:
 
 
 def test_lemmas_correctness(
-    example: tuple[FNode, int, int, int], solver_info: tuple[SMTEnumerator, bool, bool]
+    example: tuple[FNode, int, int, int], solver_info: tuple[SMTEnumerator, bool, bool, bool]
 ) -> None:
     phi, mc, pmc, pamc = example
-    solver, is_projected, is_partitioner = solver_info
+    solver, is_projected, is_partitioner, stores_divide_tlemmas = solver_info
 
     converter = solver.get_converter()
     phi = get_normalized(phi, converter)
@@ -223,10 +223,6 @@ def test_lemmas_correctness(
     phi_and_lemmas = phi & And(lemmas)
     phi_and_lemmas_atoms = phi_and_lemmas.get_atoms()
     assert set(phi_atoms) <= phi_and_lemmas_atoms
-    bool_walker = BooleanAbstractionWalker(atoms=phi_and_lemmas_atoms)
-    phi_and_lemmas_abstr = bool_walker.abstract(phi_and_lemmas)
-    phi_abstr = bool_walker.abstract(phi)
-    assert len(phi_abstr.get_atoms()) == len(phi_atoms), "Abstraction should preserve atoms of phi"
 
     # NOTE: Some lemmas introduce fresh Skolem variables, which should be existentially quantified for the lemma to
     # be t-valid.
@@ -239,6 +235,11 @@ def test_lemmas_correctness(
         assert_lemmas_are_tvalid(lemmas)
         assert_phi_equiv_phi_and_lemmas(phi, phi_and_lemmas)
 
+    bool_walker = BooleanAbstractionWalker(atoms=phi_and_lemmas_atoms)
+    phi_and_lemmas_abstr = bool_walker.abstract(phi_and_lemmas)
+    phi_abstr = bool_walker.abstract(phi)
+    assert len(phi_abstr.get_atoms()) == len(phi_atoms), "Abstraction should preserve atoms of phi"
+
     solver_abstr = MathSATTotalEnumerator(project_on_theory_atoms=False)
     abstr_sat = solver_abstr.check_all_sat(
         phi_and_lemmas_abstr,
@@ -248,7 +249,6 @@ def test_lemmas_correctness(
     assert abstr_sat == phi_sat, "Satisfiability of abstracted formula with lemmas should match original"
     assert solver_abstr.get_models_count() == expected_models_count, "Model count should match expected"
 
-    # Check phi_and_lemmas is t-reduced
     refinement_walker = RefinementWalker(abstraction=bool_walker.abstraction)
     refined_models = [[refinement_walker.refine(lit) for lit in model] for model in solver_abstr.get_models()]
     assert_models_are_tsat(phi, refined_models)
