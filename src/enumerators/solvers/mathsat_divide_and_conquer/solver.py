@@ -141,8 +141,9 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             else:
                 self.conquer_parallel(phi, atoms, seen_tlemmas, divide_models, atom_manager, store_models)
 
-        tlemmas_no_redundancy = remove_subsumed_clauses(seen_tlemmas)
-        with SuspendTypeChecking():
+        with self._timer.track_time("Remove redundancies time"):
+            tlemmas_no_redundancy = remove_subsumed_clauses(seen_tlemmas)
+        with SuspendTypeChecking(), self._timer.track_time("Decoding tlemmas time"):
             self._tlemmas = [atom_manager.decode_clause(c) for c in tlemmas_no_redundancy]
 
         if self._computation_logger is not None:
