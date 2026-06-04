@@ -168,7 +168,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
                         self._converter_total.back(lemma)
                         for lemma in mathsat.msat_get_theory_lemmas(self._solver_total.msat_env())
                     ]
-                seen_tlemmas.update({atom_manager.encode_clause(lemma) for lemma in tlemmas_total})
+                seen_tlemmas.update(atom_manager.encode_clause(lemma) for lemma in tlemmas_total)
                 self._solver_total.pop()
         else:
             proj_atoms = [atom_manager.encode_literal(atom) for atom in atoms]
