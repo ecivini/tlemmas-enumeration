@@ -42,17 +42,20 @@ class MathSATTotalEnumerator(SMTEnumerator):
         self.check_supports(phi)
         self.reset()
 
-        atoms = phi.get_atoms() if atoms is None else atoms
+        atoms = list(phi.get_atoms()) if atoms is None else atoms
         if self._project_on_theory_atoms:
             atoms = get_theory_atoms(atoms)
-        if not atoms:
-            return self._solver.is_sat(phi)
         self.atoms = atoms
-
-        self._solver.add_assertion(phi)
 
         msat_env = self._solver.msat_env()
         converter = self._solver.converter
+
+        if not (is_sat := self._solver.is_sat(phi)) or not atoms:
+            self._tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
+            return is_sat
+
+        self._solver.add_assertion(phi)
+
         with self._timer.track_time("AllSMT time"):
             if store_models:
                 models: list[list[mathsat.msat_term]] = []
