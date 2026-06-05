@@ -82,6 +82,7 @@ class MathSATTotalEnumerator(SMTEnumerator):
             return False
 
         self.log("Total models", self._models_count)
+        self.log("Lemmas", len(self._tlemmas))
 
         return True
 

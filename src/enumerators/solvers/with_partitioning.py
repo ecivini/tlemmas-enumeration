@@ -9,7 +9,6 @@ from pysmt.shortcuts import And
 from enumerators.formula import get_theory_atoms
 from enumerators.solvers.solver import SMTEnumerator
 from enumerators.util.pysmt import SuspendTypeChecking
-from enumerators.util.timer import Timer
 from enumerators.walkers.and_flattener import AndFlattener
 
 
@@ -190,9 +189,11 @@ class WithPartitioningWrapper(SMTEnumerator):
                 self._models.extend(self._base_solver.get_models())
             print("Partition solved in {:.2f} seconds.".format((time.perf_counter_ns() - iter_start) / 1e9))
         if self.computation_logger is not None:
-            self.log("Partitions", partitions_loggers)
             # Restore base solver's computation logger after changing it for each partition
             self._base_solver.computation_logger = self.computation_logger
+            self.log("Partitions", partitions_loggers)
+            self.log("Total models", sum(plogger["Total models"] for plogger in partitions_loggers))
+            self.log("Lemmas", sum(plogger["Lemmas"] for plogger in partitions_loggers))
         return overall_result
 
     def get_theory_lemmas(self) -> list[FNode]:

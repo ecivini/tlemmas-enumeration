@@ -109,7 +109,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
 
         seen_tlemmas: set[EncodedClause] = set()
 
-        with self._timer.track_time("Partial AllSMT time"):
+        with self._timer.track_time("Divide time"):
             divide_enc_models, divide_enc_tlemmas = self._divide_strategy(
                 phi,
                 atoms,
@@ -122,9 +122,10 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
 
         seen_tlemmas.update(divide_enc_tlemmas)
 
-        self.log("Partial models", len(divide_enc_models))
+        self.log("Divide models", len(divide_enc_models))
+        self.log("Divide lemmas", len(divide_enc_tlemmas))
 
-        with self._timer.track_time("Total AllSMT time"):
+        with self._timer.track_time("Conquer time"):
             if self._parallel_procs <= 1:
                 self.conquer_sequential(phi, atoms, seen_tlemmas, divide_enc_models, atom_manager, store_models)
             else:
@@ -134,7 +135,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             self._tlemmas = [atom_manager.decode_clause_pysmt(lemma) for lemma in seen_tlemmas]
 
         self.log("Total models", self._models_count)
-        self.log("T-lemmas number", len(self._tlemmas))
+        self.log("Lemmas", len(self._tlemmas))
 
         return True
 
