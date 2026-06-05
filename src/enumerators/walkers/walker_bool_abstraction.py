@@ -47,6 +47,8 @@ class BooleanAbstractionWalker(DagWalker):
 
     @handles(*op.BOOL_CONNECTIVES, op.ITE)
     def walk_bool_op(self, formula: FNode, args: tuple[FNode], **kwargs) -> FNode:
+        if formula.is_not():
+            return self.mgr.Not(args[0])
         # Boolean connectives just connect normalized children
         return self.mgr.create_node(formula.node_type(), tuple(args))
 
