@@ -2,10 +2,11 @@ import math
 from typing import Protocol
 
 import mathsat
+from pysmt.formula import FormulaContextualizer
 import tqdm
 from allsat_cnf.polarity_cnfizer import PolarityCNFizer
+from pysmt.environment import Environment, get_env, pop_env, push_env
 from pysmt.fnode import FNode
-from pysmt.shortcuts import Solver
 
 from enumerators.solvers.mathsat_divide_and_conquer.ranking import rank_atoms_by_hub_centrality
 from enumerators.solvers.mathsat_utils import (
@@ -29,14 +30,13 @@ class DivideStrategy(Protocol):
     """
 
     def __call__(
-        self, phi: FNode, atoms: list[FNode], norm: NormalizerWalker, atom_manager: AtomManager, **kwargs
+        self, phi: FNode, proj_atoms: list[FNode], atom_manager: AtomManager, **kwargs
     ) -> tuple[list[EncodedModel], list[EncodedClause]]:
         """Partition the search space.
 
         Args:
             phi: Formula to partition.
-            atoms: Atoms to consider for the division.
-            norm: Normalizer for T-atoms in assignments and and lemmas.
+            proj_atoms: Atoms to consider for the division.
             atom_manager: AtomManager for encoding models and lemmas.
             **kwargs: Additional implementation-specific parameters.
 
@@ -53,14 +53,13 @@ class DivideByPartialAllSMTStrategy(DivideStrategy):
     """Divide strategy that uses MathSAT's partial All-SMT enumeration."""
 
     def __call__(
-        self, phi: FNode, atoms: list[FNode], norm: NormalizerWalker, atom_manager: AtomManager, **kwargs
+        self, phi: FNode, proj_atoms: list[FNode], atom_manager: AtomManager, **kwargs
     ) -> tuple[list[EncodedModel], list[EncodedClause]]:
         """Partition the search space via partial All-SMT.
 
         Args:
             phi: Formula to partition (will be CNFized internally).
-            atoms: Atoms to enumerate over.
-            norm: Normalizer for T-atoms and lemmas.
+            proj_atoms: Atoms to enumerate over.
             atom_manager: AtomManager for encoding.
             **kwargs: Ignored (present for Protocol compatibility).
 
@@ -70,28 +69,38 @@ class DivideByPartialAllSMTStrategy(DivideStrategy):
             covering the search space of ``phi``, and ``encoded_tlemmas``
             are encoded theory lemmas learned during the division.
         """
-        phi = PolarityCNFizer(nnf=True, mutex_nnf_labels=True).convert_as_formula(phi)
-        partial_models = []
-        with Solver("msat", solver_options=MSAT_PARTIAL_ENUM_OPTIONS) as solver:
-            solver.add_assertion(phi)
+        push_env()
+        env: Environment = get_env()
+        contextualizer = FormulaContextualizer(env)
+        with env.factory.Solver("msat", solver_options=MSAT_PARTIAL_ENUM_OPTIONS) as solver:
             converter = solver.converter
+            normalizer = NormalizerWalker(converter, env)
+
+            phi = contextualizer.walk(phi)
+            phi = PolarityCNFizer(nnf=True, mutex_nnf_labels=True, environment=env).convert_as_formula(phi)
+            proj_atoms = [contextualizer.walk(atom) for atom in proj_atoms]
+
+            local_atom_manager = AtomManager(
+                [normalizer.normalize(contextualizer.walk(atom)) for atom in atom_manager.atoms], env=env
+            )
+
+            partial_models = []
+            solver.add_assertion(phi)
             msat_env = solver.msat_env()
             mathsat.msat_all_sat(
                 msat_env,
-                get_converted_atoms(atoms, converter),
+                get_converted_atoms(proj_atoms, converter),
                 callback=lambda model: allsat_callback_store(model, converter, partial_models),
             )
 
-            with SuspendTypeChecking(), SuspendNodeStoring():
+            with SuspendTypeChecking(env):
                 tlemmas_encoded = [
-                    atom_manager.encode_clause(norm.normalize(converter.back(lemma)))
+                    local_atom_manager.encode_clause(converter.back(lemma))
                     for lemma in mathsat.msat_get_theory_lemmas(msat_env)
                 ]
-                partial_models_encoded = [
-                    atom_manager.encode_model([norm.normalize(literal) for literal in model])
-                    for model in partial_models
-                ]
+                partial_models_encoded = [local_atom_manager.encode_model(model) for model in partial_models]
 
+        pop_env()
         return partial_models_encoded, tlemmas_encoded
 
 
@@ -112,18 +121,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
         self._min_cubes = min_cubes
 
     def compute_min_cubes(self, n_workers: int) -> int:
-        """Return the effective minimum number of cubes.
-
-        If ``self._min_cubes > 0``, returns the configured value.
-        Otherwise computes ``n_workers * 20``.
-
-        Args:
-            n_workers: Number of parallel workers (used only when
-                ``self._min_cubes`` is ``0``).
-
-        Returns:
-            The target number of cubes.
-        """
+        """Return the effective minimum number of cubes."""
         if self._min_cubes > 0:
             return self._min_cubes
         if n_workers <= 0:
@@ -135,8 +133,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
     def __call__(
         self,
         phi: FNode,
-        atoms: list[FNode],
-        norm: NormalizerWalker,
+        proj_atoms: list[FNode],
         atom_manager: AtomManager,
         n_workers: int = 0,
         show_progress: bool = False,
@@ -146,8 +143,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
 
         Args:
             phi: Formula to partition.
-            atoms: Atoms to consider for the division.
-            norm: Normalizer for T-atoms in assignments and lemmas.
+            proj_atoms: Atoms to consider for the division.
             atom_manager: AtomManager for encoding.
             n_workers: Number of parallel workers.  Used only when the
                 strategy was constructed with ``min_cubes=0`` to derive the
@@ -162,19 +158,33 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             covering the search space of ``phi``, and ``encoded_tlemmas``
             are encoded theory lemmas learned during the division.
         """
-        min_cubes = self.compute_min_cubes(n_workers)
-        atoms = rank_atoms_by_hub_centrality(atoms)
+        push_env()
+        env: Environment = get_env()
+        with env.factory.Solver("msat", solver_options=MSAT_TOTAL_ENUM_OPTIONS) as solver:
+            contextualizer = FormulaContextualizer(env)
 
-        cubes: list[list[FNode]] = [[]]
-        tlemmas_raw: set[mathsat.msat_term] = set()
-        with Solver("msat", solver_options=MSAT_TOTAL_ENUM_OPTIONS) as solver:
-            solver.add_assertion(phi)
+            phi = contextualizer.walk(phi)
+            proj_atoms = [contextualizer.walk(atom) for atom in proj_atoms]
+
             converter = solver.converter
+            normalizer = NormalizerWalker(converter, env)
+            local_atom_manager = AtomManager(
+                [normalizer.normalize(contextualizer.walk(atom)) for atom in atom_manager.atoms], env=env
+            )
+
+            min_cubes = self.compute_min_cubes(n_workers)
+            proj_atoms = rank_atoms_by_hub_centrality(proj_atoms)
+
+            cubes: list[list[FNode]] = [[]]
+            tlemmas_raw: set[mathsat.msat_term] = set()
+
+            solver.add_assertion(phi)
+
             msat_env = solver.msat_env()
             batch_begin = 0
-            batch_end = max(1, min(len(atoms), (min_cubes - 1).bit_length()))
-            while len(cubes) < min_cubes and batch_begin < len(atoms):
-                atoms_to_project = atoms[batch_begin:batch_end]
+            batch_end = max(1, min(len(proj_atoms), (min_cubes - 1).bit_length()))
+            while len(cubes) < min_cubes and batch_begin < len(proj_atoms):
+                atoms_to_project = proj_atoms[batch_begin:batch_end]
                 next_gen: list[list[FNode]] = []
                 desc = f"Dividing {len(cubes)}/{min_cubes} cubes | atoms {len(atoms_to_project)}"
                 for cube in tqdm.tqdm(cubes, desc=desc, leave=False, disable=not show_progress):
@@ -200,13 +210,10 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
                 cubes = next_gen
                 batch_begin = batch_end
                 batch_end = batch_begin + batch_size
-            with SuspendTypeChecking(), SuspendNodeStoring():
-                tlemmas_encoded = [
-                    atom_manager.encode_clause(norm.normalize(converter.back(lemma))) for lemma in tlemmas_raw
-                ]
-                cubes_encoded = [
-                    atom_manager.encode_model([norm.normalize(literal) for literal in model]) for model in cubes
-                ]
+            with SuspendTypeChecking(env):
+                tlemmas_encoded = [local_atom_manager.encode_clause(converter.back(lemma)) for lemma in tlemmas_raw]
+                cubes_encoded = [local_atom_manager.encode_model(model) for model in cubes]
+        pop_env()
 
         return cubes_encoded, tlemmas_encoded
 

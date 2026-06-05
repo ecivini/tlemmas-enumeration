@@ -23,8 +23,6 @@ from enumerators.solvers.mathsat_utils import (
 )
 from enumerators.solvers.solver import SMTEnumerator
 from enumerators.util.pysmt import SuspendNodeStoring, SuspendTypeChecking
-from enumerators.util.timer import Timer
-from enumerators.walkers.normalizer import NormalizerWalker
 
 
 class MathSATDivideAndConquerEnumerator(SMTEnumerator):
@@ -111,12 +109,10 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
 
         seen_tlemmas: set[EncodedClause] = set()
 
-        normalizer = NormalizerWalker(converter)
         with self._timer.track_time("Partial AllSMT time"):
             divide_enc_models, divide_enc_tlemmas = self._divide_strategy(
                 phi,
                 atoms,
-                normalizer,
                 atom_manager,
                 n_workers=self._parallel_procs,
                 show_progress=self._show_progress,
