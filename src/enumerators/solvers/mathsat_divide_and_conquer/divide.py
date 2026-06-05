@@ -200,6 +200,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
                     break
                 batch_size = self._next_batch_size(
                     current_cubes=len(next_gen),
+                    previous_cubes=len(cubes),
                     min_cubes=min_cubes,
                     last_batch_size=batch_end - batch_begin,
                     total_projected_atoms=batch_end,
@@ -216,6 +217,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
     @staticmethod
     def _next_batch_size(
         current_cubes: int,
+        previous_cubes: int,
         min_cubes: int,
         last_batch_size: int,
         total_projected_atoms: int,
@@ -247,15 +249,19 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             return 0
 
         # Estimate of the average branching factor contributed by a single projected atom.
-        estimated_bf_per_atom = current_cubes ** (1.0 / total_projected_atoms)
-        # Negligible growth: increase the projection horizon aggressively.
+        # 1. Estimate branching factor using ONLY the most recent batch's performance
+        if previous_cubes > 0 and last_batch_size > 0:
+            estimated_bf_per_atom = (current_cubes / previous_cubes) ** (1.0 / last_batch_size)
+        else:
+            estimated_bf_per_atom = current_cubes ** (1.0 / total_projected_atoms)
+
+        # 2. If recent growth is negligible, scale up aggressively (exponential backoff)
         if estimated_bf_per_atom <= 1.05:
             return max(1, 2 * last_batch_size)
 
         remaining_factor = min_cubes / current_cubes
 
-        # Solve: current_cubes * bf_per_atom^k >= min_cubes
-        # for k.
+        # Solve: current_cubes * bf_per_atom^k >= min_cubes for k.
         k_needed = math.ceil(math.log(remaining_factor) / math.log(estimated_bf_per_atom))
 
         # The branching estimate is only approximate. Avoid sudden jumps in
