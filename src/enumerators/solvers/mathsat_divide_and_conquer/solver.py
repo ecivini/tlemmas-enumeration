@@ -16,15 +16,13 @@ from enumerators.solvers.mathsat_utils import (
     MSAT_TOTAL_ENUM_OPTIONS,
     AtomManager,
     EncodedClause,
+    EncodedModel,
     allsat_callback_count,
     allsat_callback_store,
     get_converted_atoms,
-    remove_subsumed_clauses,
 )
 from enumerators.solvers.solver import SMTEnumerator
 from enumerators.util.pysmt import SuspendTypeChecking
-from enumerators.util.timer import Timer
-from enumerators.walkers.normalizer import NormalizerWalker
 
 
 class MathSATDivideAndConquerEnumerator(SMTEnumerator):
@@ -94,57 +92,47 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         """
         self.check_supports(phi)
         self.reset()
-
-        converter = self._converter_total
-        msat_env = self._solver_total.msat_env()
-
-        is_sat = self._solver_total.is_sat(phi)
-        with SuspendTypeChecking():
-            self._tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
-        if not is_sat:
-            return False
-
         atoms = list(phi.get_atoms()) if atoms is None else atoms
         if self._project_on_theory_atoms:
             atoms = get_theory_atoms(atoms)
-        if not atoms:
-            return True
-
         self.atoms = atoms
 
-        normalizer = NormalizerWalker(converter)
+        converter = self._converter_total
+
+        if not (is_sat := self._solver_total.is_sat(phi)) or not atoms:
+            msat_env = self._solver_total.msat_env()
+            self._tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
+            return is_sat
+
+        known_atoms = list(phi.get_atoms() | set(atoms))
+        atom_manager = AtomManager(known_atoms, converter=converter)
+
+        seen_tlemmas: set[EncodedClause] = set()
+
         with self._timer.track_time("Partial AllSMT time"):
-            divide_models, divide_tlemmas = self._divide_strategy(
+            divide_enc_models, divide_enc_tlemmas = self._divide_strategy(
                 phi,
                 atoms,
-                normalizer,
+                atom_manager,
                 n_workers=self._parallel_procs,
                 show_progress=self._show_progress,
             )
 
-        assert divide_models
+        assert divide_enc_models
 
-        all_atoms = list(
-            phi.get_atoms() | set(atoms) | {atom for lemma in divide_tlemmas for atom in lemma.get_atoms()}
-        )
-        atom_manager = AtomManager(all_atoms)
-        seen_tlemmas: set[EncodedClause] = {atom_manager.encode_clause(lemma) for lemma in divide_tlemmas}
+        seen_tlemmas.update(divide_enc_tlemmas)
 
         if self._computation_logger is not None:
-            self._computation_logger["Partial models"] = len(divide_models)
+            self._computation_logger["Partial models"] = len(divide_enc_models)
 
         with self._timer.track_time("Total AllSMT time"):
             if self._parallel_procs <= 1:
-                self.conquer_sequential(
-                    phi, atoms, divide_tlemmas, seen_tlemmas, divide_models, atom_manager, store_models
-                )
+                self.conquer_sequential(phi, atoms, seen_tlemmas, divide_enc_models, atom_manager, store_models)
             else:
-                self.conquer_parallel(phi, atoms, seen_tlemmas, divide_models, atom_manager, store_models)
+                self.conquer_parallel(phi, atoms, seen_tlemmas, divide_enc_models, atom_manager, store_models)
 
-        with self._timer.track_time("Remove redundancies time"):
-            tlemmas_no_redundancy = remove_subsumed_clauses(seen_tlemmas)
         with SuspendTypeChecking(), self._timer.track_time("Decoding tlemmas time"):
-            self._tlemmas = [atom_manager.decode_clause(c) for c in tlemmas_no_redundancy]
+            self._tlemmas = [atom_manager.decode_clause_pysmt(lemma) for lemma in seen_tlemmas]
 
         if self._computation_logger is not None:
             self._computation_logger["Total models"] = self._models_count
@@ -170,29 +158,33 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         self,
         phi: FNode,
         atoms: list[FNode],
-        divide_tlemmas: list[FNode],
         seen_tlemmas: set[EncodedClause],
-        divide_models: list[list[FNode]],
+        divide_models: list[EncodedModel],
         atom_manager: AtomManager,
         store_models: bool,
     ) -> None:
         self._solver_total.add_assertion(phi)
+        msat_env = self._solver_total.msat_env()
+        converter = self._solver_total.converter
         if self._use_divide_tlemmas:
-            self._solver_total.add_assertions(divide_tlemmas)
-        converted_atoms = get_converted_atoms(atoms, self._converter_total)
-        for m in tqdm.tqdm(divide_models, desc="Solving subproblems", disable=not self._show_progress):
+            for lemma in seen_tlemmas:
+                mathsat.msat_assert_formula(msat_env, atom_manager.decode_clause_msat(lemma))
+        converted_atoms = get_converted_atoms(atoms, converter)
+        for enc_model in tqdm.tqdm(divide_models, desc="Solving subproblems", disable=not self._show_progress):
             self._solver_total.push()
-            self._solver_total.add_assertions(m)
+            for lit in atom_manager.decode_model_msat(enc_model):
+                mathsat.msat_assert_formula(msat_env, lit)
 
             if store_models:
-                worker_enc_models = []
+                msat_models_total = []
                 mathsat.msat_all_sat(
                     self._solver_total.msat_env(),
                     converted_atoms,
-                    callback=lambda model: allsat_callback_store(model, self._converter_total, worker_enc_models),
+                    callback=lambda model: allsat_callback_store(model, msat_models_total),
                 )
-                self._models_count += len(worker_enc_models)
-                self._models.extend(worker_enc_models)
+                self._models_count += len(msat_models_total)
+                with SuspendTypeChecking():
+                    self._models += [[converter.back(lit) for lit in model] for model in msat_models_total]
             else:
                 models_count_l = [0]
                 mathsat.msat_all_sat(
@@ -202,12 +194,10 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
                 )
                 self._models_count += models_count_l[0]
 
-            with SuspendTypeChecking():
-                tlemmas_total = [
-                    self._converter_total.back(lemma)
-                    for lemma in mathsat.msat_get_theory_lemmas(self._solver_total.msat_env())
-                ]
-            seen_tlemmas.update(atom_manager.encode_clause(lemma) for lemma in tlemmas_total)
+            tlemmas_total = [
+                atom_manager.encode_clause_msat(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)
+            ]
+            seen_tlemmas.update(tlemmas_total)
             self._solver_total.pop()
 
     def conquer_parallel(
@@ -215,12 +205,11 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         phi: FNode,
         atoms: list[FNode],
         seen_tlemmas: set[EncodedClause],
-        divide_models: list[list[FNode]],
+        divide_enc_models: list[EncodedModel],
         atom_manager: AtomManager,
         store_models: bool,
     ) -> None:
-        proj_atoms = [atom_manager.encode_literal(atom) for atom in atoms]
-        enc_partial_models = [atom_manager.encode_model(model) for model in divide_models]
+        proj_atoms = [atom_manager.encode_literal_pysmt(atom) for atom in atoms]
         worker_tlemmas = list(seen_tlemmas) if self._use_divide_tlemmas else []
         with multiprocessing.Pool(
             processes=self._parallel_procs,
@@ -229,12 +218,13 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             maxtasksperchild=self._maxtasksperchild,
         ) as pool:
             for worker_enc_models, work_model_count, worker_enc_tlemmas in tqdm.tqdm(
-                pool.imap_unordered(parallel_worker, enc_partial_models),
+                pool.imap_unordered(parallel_worker, divide_enc_models),
                 desc="Solving subproblems",
-                total=len(enc_partial_models),
+                total=len(divide_enc_models),
                 disable=not self._show_progress,
             ):
                 with SuspendTypeChecking(), self._timer.track_time("Total deserialization time"):
-                    self._models.extend([atom_manager.decode_model(model) for model in worker_enc_models])
+                    if store_models:
+                        self._models.extend([atom_manager.decode_model_pysmt(model) for model in worker_enc_models])
                     seen_tlemmas.update(worker_enc_tlemmas)
                 self._models_count += work_model_count

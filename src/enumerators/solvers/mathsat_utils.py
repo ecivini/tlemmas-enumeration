@@ -1,14 +1,14 @@
-from collections import defaultdict
 from io import StringIO
-from typing import Iterable, TypeAlias
+from typing import TypeAlias
 
-from mathsat import msat_term
+import mathsat
 from pysmt.environment import Environment
 from pysmt.fnode import FNode
 from pysmt.formula import FormulaManager
 from pysmt.shortcuts import get_env
 from pysmt.smtlib.parser import SmtLibParser
 from pysmt.smtlib.script import smtlibscript_from_formula
+from pysmt.solvers.msat import MSatConverter
 
 from enumerators.util.pysmt import SuspendTypeChecking
 
@@ -41,11 +41,9 @@ def allsat_callback_count(models: list[int]):
     return 1
 
 
-def allsat_callback_store(model, converter, models):
+def allsat_callback_store(model, models):
     """callback for partial all-sat"""
-    with SuspendTypeChecking():
-        py_model = [converter.back(v) for v in model]
-    models.append(py_model)
+    models.append(list(model))
     return 1
 
 
@@ -79,92 +77,124 @@ class AtomManager:
     SMT-LIB serialization and decoded by parsing them back when needed.
     """
 
-    def __init__(self, atoms: list[FNode], env: Environment | None = None):
+    def __init__(self, atoms: list[FNode], converter: MSatConverter, env: Environment | None = None):
         self.env = get_env() if env is None else env
-        self._idx_to_atom = atoms
-        self._atom_to_idx: dict[FNode, int] = {a: i for i, a in enumerate(atoms)}
+        self._converter = converter
+
+        msat_atoms = [
+            mathsat.msat_term_get_arg(catom, 0)
+            if mathsat.msat_term_is_not(self.msat_env, (catom := converter.convert(atom)))
+            else catom
+            for atom in atoms
+        ]
+        with SuspendTypeChecking():
+            pysmt_atoms = [converter.back(msat_atom) for msat_atom in msat_atoms]
+
+        self._idx_to_pysmt_atom = pysmt_atoms
+        self._idx_to_msat_atom = msat_atoms
+
+        self._pysmt_atom_to_idx: dict[FNode, int] = {a: i for i, a in enumerate(pysmt_atoms)}
+        self._msat_atom_to_idx: dict[mathsat.msat_term, int] = {a: i for i, a in enumerate(msat_atoms)}
+
         self._parser = SmtLibParser(self.env)
 
     @property
     def atoms(self) -> list[FNode]:
-        return list(self._idx_to_atom)
+        return list(self._idx_to_pysmt_atom)
 
     @property
     def mgr(self) -> FormulaManager:
         return self.env.formula_manager
 
-    def encode_literal(self, lit: FNode) -> int | str:
+    @property
+    def msat_env(self) -> mathsat.msat_env:
+        return self._converter.msat_env()
+
+    def encode_literal_pysmt(self, lit: FNode) -> int | str:
         is_neg = lit.is_not()
         atom = lit.arg(0) if is_neg else lit
-        idx = self._atom_to_idx.get(atom)
+        idx = self._pysmt_atom_to_idx.get(atom)
         if idx is not None:
             return -idx - 1 if is_neg else (idx + 1)
         return serialize_formula(lit)
 
-    def encode_model(self, model: list[FNode]) -> EncodedModel:
+    def encode_literal_msat(self, lit: mathsat.msat_term) -> int | str:
+        is_neg = mathsat.msat_term_is_not(self.msat_env, lit)
+        atom = mathsat.msat_term_get_arg(lit, 0) if is_neg else lit
+        idx = self._msat_atom_to_idx.get(atom)
+        if idx is not None:
+            return -idx - 1 if is_neg else (idx + 1)
+        pysmt_lit = self._converter.back(lit)
+        return serialize_formula(pysmt_lit)
+
+    def encode_model_pysmt(self, model: list[FNode]) -> EncodedModel:
         """Partial models only contain known atoms; all values must be ints."""
-        result = [self.encode_literal(lit) for lit in model]
-        assert all(isinstance(v, int) for v in result), (
-            "Unexpected unknown atom in partial model: {}, known_atoms: {}".format(model, self._idx_to_atom)
+        result = [self.encode_literal_pysmt(lit) for lit in model]
+        assert all(isinstance(v, int) for v in result), "Unexpected unknown atom in model: {}, known_atoms: {}".format(
+            model, self._idx_to_pysmt_atom
         )
         return result  # type: ignore[return-value]
 
-    def encode_clause(self, clause: FNode) -> EncodedClause:
+    def encode_model_msat(self, model: list[mathsat.msat_term]) -> EncodedModel:
+        result = [self.encode_literal_msat(lit) for lit in model]
+        assert all(isinstance(v, int) for v in result), "Unexpected unknown atom in model: {}, known_atoms: {}".format(
+            model, self._idx_to_pysmt_atom
+        )
+        return result  # type: ignore[return-value]
+
+    def encode_clause_pysmt(self, clause: FNode) -> EncodedClause:
         """T-lemmas may contain unknown atoms; splits into known indices and new strings."""
-        lits = list(clause.args()) if clause.is_or() else [clause]
+        lits = [clause]
         known, new = [], []
         while lits:
             lit = lits.pop()
             if lit.is_or():
                 lits.extend(lit.args())
             else:
-                enc = self.encode_literal(lit)
+                enc = self.encode_literal_pysmt(lit)
                 (known if isinstance(enc, int) else new).append(enc)
         return tuple(sorted(known, key=lambda v: abs(v))), tuple(sorted(new))
 
-    def decode_literal(self, val: int | str) -> FNode:
+    def encode_clause_msat(self, clause: mathsat.msat_term) -> EncodedClause:
+        lits = [clause]
+        known, new = [], []
+        while lits:
+            lit = lits.pop()
+            if mathsat.msat_term_is_or(self.msat_env, lit):
+                arity = mathsat.msat_term_arity(lit)
+                lits.extend([mathsat.msat_term_get_arg(lit, i) for i in range(arity)])
+            else:
+                enc = self.encode_literal_msat(lit)
+                (known if isinstance(enc, int) else new).append(enc)
+        return tuple(sorted(known, key=lambda v: abs(v))), tuple(sorted(new))
+
+    def decode_literal_pysmt(self, val: int | str) -> FNode:
         if isinstance(val, int):
-            atom = self._idx_to_atom[val - 1] if val > 0 else self._idx_to_atom[-val - 1]
+            atom = self._idx_to_pysmt_atom[abs(val) - 1]
             return atom if val > 0 else self.mgr.Not(atom)
         return deserialize_formula(val, self._parser)
 
-    def decode_model(self, indices: EncodedModel) -> list[FNode]:
-        return [self.decode_literal(i) for i in indices]
+    def decode_literal_msat(self, val: int | str) -> mathsat.msat_term:
+        if isinstance(val, int):
+            atom = self._idx_to_msat_atom[abs(val) - 1]
+            return atom if val > 0 else self._converter.walk_not(None, [atom])
+        return self._converter.convert(deserialize_formula(val, self._parser))
 
-    def decode_clause(self, clause: EncodedClause) -> FNode:
+    def decode_model_pysmt(self, indices: EncodedModel) -> list[FNode]:
+        return [self.decode_literal_pysmt(i) for i in indices]
+
+    def decode_model_msat(self, indices: EncodedModel) -> list[mathsat.msat_term]:
+        return [self.decode_literal_msat(i) for i in indices]
+
+    def decode_clause_pysmt(self, clause: EncodedClause) -> FNode:
         known, new = clause
-        return self.mgr.Or([self.decode_literal(v) for v in (*known, *new)])
+        return self.mgr.Or([self.decode_literal_pysmt(v) for v in (*known, *new)])
+
+    def decode_clause_msat(self, clause: EncodedClause) -> mathsat.msat_term:
+        known, new = clause
+        return self._converter.walk_or(None, [self.decode_literal_msat(v) for v in (*known, *new)])
 
 
-def remove_subsumed_clauses(clauses: Iterable[EncodedClause]) -> list[EncodedClause]:
-    sorted_clauses = sorted(clauses, key=lambda c: len(c[0]) + len(c[1]))
-
-    result: list[EncodedClause] = []
-    result_sets: list[tuple[frozenset[int], frozenset[str]]] = []
-    # Index by the minimum known literal of each result clause
-    index: defaultdict[int, list[int]] = defaultdict(list)
-    empty_known: list[int] = []  # result clauses with empty known
-
-    for known, unknown in sorted_clauses:
-        ks, us = frozenset(known), frozenset(unknown)
-
-        # A subsuming R must have min(R.known) \in ks (since R.known \subseteq ks)
-        candidates = [i for lit in ks for i in index[lit]] + empty_known
-
-        if any(result_sets[i][0].issubset(ks) and result_sets[i][1].issubset(us) for i in dict.fromkeys(candidates)):
-            continue
-
-        idx = len(result)
-        result.append((known, unknown))
-        result_sets.append((ks, us))
-        if ks:
-            index[min(ks)].append(idx)
-        else:
-            empty_known.append(idx)
-
-    return result
-
-
-def get_converted_atoms(atoms, converter) -> list[msat_term]:
+def get_converted_atoms(atoms, converter) -> list[mathsat.msat_term]:
     """Returns a list of normalized atoms"""
     return [converter.convert(a) for a in atoms]

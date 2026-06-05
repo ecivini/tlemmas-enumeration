@@ -6,6 +6,7 @@ from pysmt.shortcuts import (
     read_smtlib,
 )
 from pysmt.fnode import FNode
+from pysmt.typing import BOOL
 
 from enumerators.util.custom_exceptions import FormulaException
 from enumerators.util.pysmt import SuspendTypeChecking
@@ -49,3 +50,15 @@ def get_normalized(phi: FNode, converter) -> FNode:
 
 def get_theory_atoms(atoms: Collection[FNode]) -> list[FNode]:
     return [atom for atom in atoms if not atom.is_symbol(_BOOL)]
+
+
+def is_atom(atom: FNode) -> bool:
+    return atom.is_symbol(BOOL) or atom.is_theory_relation() or atom.is_bool_constant()
+
+
+def is_literal(literal: FNode) -> bool:
+    return is_atom(literal) or (literal.is_not() and is_atom(literal.arg(0)))
+
+
+def is_clause(phi: FNode) -> bool:
+    return is_literal(phi) or (phi.is_or() and all(is_clause(a) for a in phi.args()))

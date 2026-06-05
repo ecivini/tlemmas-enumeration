@@ -11,10 +11,8 @@ from enumerators.solvers.mathsat_utils import (
     EncodedModel,
     allsat_callback_count,
     allsat_callback_store,
-    get_converted_atoms,
 )
-from enumerators.util.pysmt import SuspendNodeStoring, SuspendTypeChecking
-from enumerators.walkers.normalizer import NormalizerWalker
+from enumerators.util.pysmt import SuspendTypeChecking
 
 _ATOM_MANAGER: AtomManager
 _MSAT_PROJ_ATOMS: list[mathsat.msat_term]
@@ -40,18 +38,17 @@ def initialize_worker(
     converter = solver.converter
 
     contextualizer = FormulaContextualizer()
-    normalizer = NormalizerWalker(converter)
 
     with SuspendTypeChecking():
-        all_atoms = [normalizer.normalize(contextualizer.walk(atom)) for atom in all_atoms]
-        _ATOM_MANAGER = AtomManager(all_atoms, env)
-        _MSAT_PROJ_ATOMS = get_converted_atoms([_ATOM_MANAGER.decode_literal(atom) for atom in proj_atoms], converter)
+        all_atoms = [contextualizer.walk(atom) for atom in all_atoms]
+    _ATOM_MANAGER = AtomManager(all_atoms, converter, env)
+    _MSAT_PROJ_ATOMS = [_ATOM_MANAGER.decode_literal_msat(atom) for atom in proj_atoms]
 
     phi = contextualizer.walk(phi)
     solver.add_assertion(phi)
-    with SuspendTypeChecking(), SuspendNodeStoring():
-        for encoded_tlemma in tlemmas:
-            solver.add_assertion(_ATOM_MANAGER.decode_clause(encoded_tlemma))
+    msat_env = solver.msat_env()
+    for encoded_tlemma in tlemmas:
+        mathsat.msat_assert_formula(msat_env, _ATOM_MANAGER.decode_clause_msat(encoded_tlemma))
 
 
 def parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[EncodedClause]]:
@@ -67,25 +64,25 @@ def parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[Enc
 
     solver = _SOLVER
     assert solver is not None
-    converter = solver.converter
+    msat_env = solver.msat_env()
     solver.push()
 
     atom_manager = _ATOM_MANAGER
     assert atom_manager is not None
 
-    with SuspendTypeChecking():
-        solver.add_assertions(atom_manager.decode_model(model))
+    for lit in atom_manager.decode_model_msat(model):
+        mathsat.msat_assert_formula(msat_env, lit)
 
     found_models: list[list[int]] = []
     found_models_count = 0
     if _STORE_MODELS:
-        pysmt_models = []
+        msat_models = []
         mathsat.msat_all_sat(
             solver.msat_env(),
             _MSAT_PROJ_ATOMS,
-            callback=lambda model: allsat_callback_store(model, converter, pysmt_models),
+            callback=lambda model: allsat_callback_store(model, msat_models),
         )
-        found_models = [atom_manager.encode_model(model) for model in pysmt_models]
+        found_models = [atom_manager.encode_model_msat(model) for model in msat_models]
         found_models_count = len(found_models)
     else:
         models_count_l = [0]
@@ -96,11 +93,9 @@ def parallel_worker(model: list[int]) -> tuple[list[EncodedModel], int, list[Enc
         )
         found_models_count = models_count_l[0]
 
-    with SuspendTypeChecking(), SuspendNodeStoring():
-        found_tlemmas = [
-            atom_manager.encode_clause(converter.back(lemma))
-            for lemma in mathsat.msat_get_theory_lemmas(solver.msat_env())
-        ]
+    found_tlemmas = [
+        atom_manager.encode_clause_msat(lemma) for lemma in mathsat.msat_get_theory_lemmas(solver.msat_env())
+    ]
 
     solver.pop()
     # solver.add_assertions(found_tlemmas)

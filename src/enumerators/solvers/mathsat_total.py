@@ -51,13 +51,18 @@ class MathSATTotalEnumerator(SMTEnumerator):
 
         self._solver.add_assertion(phi)
 
+        msat_env = self._solver.msat_env()
+        converter = self._solver.converter
         if store_models:
+            models: list[list[mathsat.msat_term]] = []
             mathsat.msat_all_sat(
-                self._solver.msat_env(),
+                msat_env,
                 self.get_converted_atoms(atoms),
-                callback=lambda model: allsat_callback_store(model, self._converter, self._models),
+                callback=lambda model: allsat_callback_store(model, models),
             )
-            self._models_count = len(self._models)
+            self._models_count = len(models)
+            with SuspendTypeChecking():
+                self._models = [[converter.back(lit) for lit in model] for model in models]
         else:
             models_count_l = [0]
             mathsat.msat_all_sat(
@@ -66,6 +71,7 @@ class MathSATTotalEnumerator(SMTEnumerator):
                 callback=lambda _: allsat_callback_count(models_count_l),
             )
             self._models_count = models_count_l[0]
+            self._models = []
 
         with SuspendTypeChecking():
             self._tlemmas = [
