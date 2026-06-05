@@ -105,7 +105,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             return is_sat
 
         known_atoms = list(phi.get_atoms() | set(atoms))
-        atom_manager = AtomManager(known_atoms)
+        atom_manager = AtomManager(known_atoms, converter=converter)
 
         seen_tlemmas: set[EncodedClause] = set()
 
@@ -132,7 +132,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
                 self.conquer_parallel(phi, atoms, seen_tlemmas, divide_enc_models, atom_manager, store_models)
 
         with SuspendTypeChecking(), self._timer.track_time("Decoding tlemmas time"):
-            self._tlemmas = [atom_manager.decode_clause(lemma) for lemma in seen_tlemmas]
+            self._tlemmas = [atom_manager.decode_clause_pysmt(lemma) for lemma in seen_tlemmas]
 
         if self._computation_logger is not None:
             self._computation_logger["Total models"] = self._models_count
@@ -159,29 +159,33 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         phi: FNode,
         atoms: list[FNode],
         seen_tlemmas: set[EncodedClause],
-        divide_enc_models: list[EncodedModel],
+        divide_models: list[EncodedModel],
         atom_manager: AtomManager,
         store_models: bool,
     ) -> None:
         self._solver_total.add_assertion(phi)
+        msat_env = self._solver_total.msat_env()
+        converter = self._solver_total.converter
         if self._use_divide_tlemmas:
-            with SuspendNodeStoring():
-                self._solver_total.add_assertions([atom_manager.decode_clause(c) for c in seen_tlemmas])
-        converted_atoms = get_converted_atoms(atoms, self._converter_total)
-        for enc_model in tqdm.tqdm(divide_enc_models, desc="Solving subproblems", disable=not self._show_progress):
+            for lemma in seen_tlemmas:
+                mathsat.msat_assert_formula(msat_env, atom_manager.decode_clause_msat(lemma))
+        converted_atoms = get_converted_atoms(atoms, converter)
+        for enc_model in tqdm.tqdm(divide_models, desc="Solving subproblems", disable=not self._show_progress):
             self._solver_total.push()
             with SuspendNodeStoring():
-                self._solver_total.add_assertions(atom_manager.decode_model(enc_model))
+                for lit in atom_manager.decode_model_msat(enc_model):
+                    mathsat.msat_assert_formula(msat_env, lit)
 
             if store_models:
-                worker_enc_models = []
+                msat_models_total = []
                 mathsat.msat_all_sat(
                     self._solver_total.msat_env(),
                     converted_atoms,
-                    callback=lambda model: allsat_callback_store(model, self._converter_total, worker_enc_models),
+                    callback=lambda model: allsat_callback_store(model, msat_models_total),
                 )
-                self._models_count += len(worker_enc_models)
-                self._models.extend(worker_enc_models)
+                self._models_count += len(msat_models_total)
+                with SuspendTypeChecking():
+                    self._models += [[converter.back(lit) for lit in model] for model in msat_models_total]
             else:
                 models_count_l = [0]
                 mathsat.msat_all_sat(
@@ -191,12 +195,10 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
                 )
                 self._models_count += models_count_l[0]
 
-            with SuspendTypeChecking(), SuspendNodeStoring():
-                tlemmas_total = [
-                    atom_manager.encode_clause(self._converter_total.back(lemma))
-                    for lemma in mathsat.msat_get_theory_lemmas(self._solver_total.msat_env())
-                ]
-                seen_tlemmas.update(tlemmas_total)
+            tlemmas_total = [
+                atom_manager.encode_clause_msat(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)
+            ]
+            seen_tlemmas.update(tlemmas_total)
             self._solver_total.pop()
 
     def conquer_parallel(
@@ -208,7 +210,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         atom_manager: AtomManager,
         store_models: bool,
     ) -> None:
-        proj_atoms = [atom_manager.encode_literal(atom) for atom in atoms]
+        proj_atoms = [atom_manager.encode_literal_pysmt(atom) for atom in atoms]
         worker_tlemmas = list(seen_tlemmas) if self._use_divide_tlemmas else []
         with multiprocessing.Pool(
             processes=self._parallel_procs,
@@ -223,6 +225,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
                 disable=not self._show_progress,
             ):
                 with SuspendTypeChecking(), self._timer.track_time("Total deserialization time"):
-                    self._models.extend([atom_manager.decode_model(model) for model in worker_enc_models])
+                    if store_models:
+                        self._models.extend([atom_manager.decode_model_pysmt(model) for model in worker_enc_models])
                     seen_tlemmas.update(worker_enc_tlemmas)
                 self._models_count += work_model_count
