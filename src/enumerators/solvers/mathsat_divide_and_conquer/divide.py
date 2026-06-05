@@ -111,11 +111,26 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
     Args:
         min_cubes: Target number of cubes.  If ``0`` (default), it is computed
             as ``n_workers * 20`` at call time.
+        max_batch_size: Maximum number of atoms to project in a single batch.
+            Used to detect low-productivity plateaus.  Defaults to 8.
+        min_growth_threshold: Minimum cube growth ratio
+            (``next_gen / cubes``) below which a batch is considered
+            low-productivity.  Defaults to 1.01.
+        max_low_prod_streak: Consecutive low-productivity batches allowed
+            before early-exiting the divide.  Defaults to 3.
     """
 
-    def __init__(self, min_cubes: int = 0, max_iterations: int = 10):
+    def __init__(
+        self,
+        min_cubes: int = 0,
+        max_batch_size: int = 8,
+        min_growth_threshold: float = 1.01,
+        max_low_prod_streak: int = 3,
+    ):
         self._min_cubes = min_cubes
-        self._max_iterations = max_iterations
+        self._max_batch_size = max_batch_size
+        self._min_growth_threshold = min_growth_threshold
+        self._max_low_prod_streak = max_low_prod_streak
 
     def compute_min_cubes(self, n_workers: int) -> int:
         """Return the effective minimum number of cubes."""
@@ -180,8 +195,8 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             msat_env = solver.msat_env()
             batch_begin = 0
             batch_end = max(1, min(len(proj_atoms), (min_cubes - 1).bit_length()))
-            iterations = 0
-            while iterations < self._max_iterations and len(cubes) < min_cubes and batch_begin < len(proj_atoms):
+            low_prod_streak = 0
+            while len(cubes) < min_cubes and batch_begin < len(proj_atoms):
                 atoms_to_project = proj_atoms[batch_begin:batch_end]
                 next_gen: list[list[mathsat.msat_term]] = []
                 desc = f"Dividing {len(cubes)}/{min_cubes} cubes | atoms {len(atoms_to_project)}"
@@ -198,13 +213,26 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
                     tlemmas_raw.update(mathsat.msat_get_theory_lemmas(msat_env))
                     next_gen.extend([cube + cube_ext for cube_ext in cube_extensions])
                     solver.pop()
+
+                # Early exit: unsat
                 if not next_gen:
                     break
+
+                # Early exit: low prod
+                last_batch_size = batch_end - batch_begin
+                if last_batch_size >= self._max_batch_size and len(next_gen) / len(cubes) < self._min_growth_threshold:
+                    low_prod_streak += 1
+                else:
+                    low_prod_streak = 0
+                if low_prod_streak >= self._max_low_prod_streak:
+                    cubes = next_gen
+                    break
+
                 batch_size = self._next_batch_size(
                     current_cubes=len(next_gen),
                     previous_cubes=len(cubes),
                     min_cubes=min_cubes,
-                    last_batch_size=batch_end - batch_begin,
+                    last_batch_size=last_batch_size,
                     total_projected_atoms=batch_end,
                 )
                 cubes = next_gen
