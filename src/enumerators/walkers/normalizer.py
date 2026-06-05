@@ -5,8 +5,6 @@ from pysmt.fnode import FNode
 from pysmt.formula import FormulaManager
 from pysmt.walkers import DagWalker, handles
 
-from enumerators.util.pysmt import SuspendTypeChecking
-
 
 class NormalizerWalker(DagWalker):
     """A walker to normalize smt formulas according to a converter"""

@@ -22,7 +22,7 @@ from enumerators.solvers.mathsat_utils import (
     get_converted_atoms,
 )
 from enumerators.solvers.solver import SMTEnumerator
-from enumerators.util.pysmt import SuspendNodeStoring, SuspendTypeChecking
+from enumerators.util.pysmt import SuspendTypeChecking
 
 
 class MathSATDivideAndConquerEnumerator(SMTEnumerator):
@@ -172,9 +172,8 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         converted_atoms = get_converted_atoms(atoms, converter)
         for enc_model in tqdm.tqdm(divide_models, desc="Solving subproblems", disable=not self._show_progress):
             self._solver_total.push()
-            with SuspendNodeStoring():
-                for lit in atom_manager.decode_model_msat(enc_model):
-                    mathsat.msat_assert_formula(msat_env, lit)
+            for lit in atom_manager.decode_model_msat(enc_model):
+                mathsat.msat_assert_formula(msat_env, lit)
 
             if store_models:
                 msat_models_total = []

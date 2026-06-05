@@ -1,8 +1,8 @@
+import pysmt.operators as op
 from pysmt.environment import Environment
+from pysmt.fnode import FNode
 from pysmt.formula import FormulaManager
 from pysmt.walkers import DagWalker, handles
-import pysmt.operators as op
-from pysmt.fnode import FNode
 
 from enumerators.util.pysmt import SuspendTypeChecking
 
