@@ -131,7 +131,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             else:
                 self.conquer_parallel(phi, atoms, seen_tlemmas, divide_enc_models, atom_manager, store_models)
 
-        with SuspendTypeChecking(), self._timer.track_time("Decoding tlemmas time"):
+        with SuspendTypeChecking(), self._timer.track_time("Lemmas conversion time"):
             self._tlemmas = [atom_manager.decode_clause_pysmt(lemma) for lemma in seen_tlemmas]
 
         self.log("Total models", self._models_count)
@@ -178,7 +178,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             if store_models:
                 msat_models_total = []
                 mathsat.msat_all_sat(
-                    self._solver_total.msat_env(),
+                    msat_env,
                     converted_atoms,
                     callback=lambda model: allsat_callback_store(model, msat_models_total),
                 )
@@ -188,7 +188,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             else:
                 models_count_l = [0]
                 mathsat.msat_all_sat(
-                    self._solver_total.msat_env(),
+                    msat_env,
                     converted_atoms,
                     callback=lambda _: allsat_callback_count(models_count_l),
                 )
