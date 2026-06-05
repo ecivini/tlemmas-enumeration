@@ -113,8 +113,9 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             as ``n_workers * 20`` at call time.
     """
 
-    def __init__(self, min_cubes: int = 0):
+    def __init__(self, min_cubes: int = 0, max_iterations: int = 10):
         self._min_cubes = min_cubes
+        self._max_iterations = max_iterations
 
     def compute_min_cubes(self, n_workers: int) -> int:
         """Return the effective minimum number of cubes."""
@@ -179,7 +180,8 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             msat_env = solver.msat_env()
             batch_begin = 0
             batch_end = max(1, min(len(proj_atoms), (min_cubes - 1).bit_length()))
-            while len(cubes) < min_cubes and batch_begin < len(proj_atoms):
+            iterations = 0
+            while iterations < self._max_iterations and len(cubes) < min_cubes and batch_begin < len(proj_atoms):
                 atoms_to_project = proj_atoms[batch_begin:batch_end]
                 next_gen: list[list[mathsat.msat_term]] = []
                 desc = f"Dividing {len(cubes)}/{min_cubes} cubes | atoms {len(atoms_to_project)}"
@@ -238,6 +240,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
 
         Args:
             current_cubes: Number of cubes currently available.
+            previous_cubes: Number of cubes from the previous iteration.
             min_cubes: Target number of cubes.
             last_batch_size: Number of atoms projected in the previous iteration.
             total_projected_atoms: Total of atoms projected so far.
