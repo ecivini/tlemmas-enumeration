@@ -122,8 +122,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
 
         seen_tlemmas.update(divide_enc_tlemmas)
 
-        if self._computation_logger is not None:
-            self._computation_logger["Partial models"] = len(divide_enc_models)
+        self.log("Partial models", len(divide_enc_models))
 
         with self._timer.track_time("Total AllSMT time"):
             if self._parallel_procs <= 1:
@@ -134,8 +133,8 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         with SuspendTypeChecking(), self._timer.track_time("Decoding tlemmas time"):
             self._tlemmas = [atom_manager.decode_clause_pysmt(lemma) for lemma in seen_tlemmas]
 
-        if self._computation_logger is not None:
-            self._computation_logger["Total models"] = self._models_count
+        self.log("Total models", self._models_count)
+        self.log("T-lemmas number", len(self._tlemmas))
 
         return True
 

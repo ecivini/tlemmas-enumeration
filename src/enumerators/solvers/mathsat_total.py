@@ -81,8 +81,7 @@ class MathSATTotalEnumerator(SMTEnumerator):
         if self._models_count == 0:
             return False
 
-        if self._computation_logger is not None:
-            self._computation_logger["Total models"] = self._models_count
+        self.log("Total models", self._models_count)
 
         return True
 

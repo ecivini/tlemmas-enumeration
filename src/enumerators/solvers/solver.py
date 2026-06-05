@@ -1,6 +1,7 @@
 """interface that all solvers must implement."""
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from pysmt.fnode import FNode
 
@@ -26,6 +27,10 @@ class SMTEnumerator(ABC):
     def computation_logger(self, value: dict | None) -> None:
         self._computation_logger = value
         self._timer = Timer(self._computation_logger)
+
+    def log(self, key: str, value: Any) -> None:
+        if self._computation_logger is not None:
+            self._computation_logger[key] = value
 
     @abstractmethod
     def reset(self) -> None:
