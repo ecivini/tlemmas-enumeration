@@ -53,36 +53,35 @@ class MathSATTotalEnumerator(SMTEnumerator):
 
         msat_env = self._solver.msat_env()
         converter = self._solver.converter
-        if store_models:
-            models: list[list[mathsat.msat_term]] = []
-            mathsat.msat_all_sat(
-                msat_env,
-                self.get_converted_atoms(atoms),
-                callback=lambda model: allsat_callback_store(model, models),
-            )
-            self._models_count = len(models)
-            with SuspendTypeChecking():
-                self._models = [[converter.back(lit) for lit in model] for model in models]
-        else:
-            models_count_l = [0]
-            mathsat.msat_all_sat(
-                self._solver.msat_env(),
-                self.get_converted_atoms(atoms),
-                callback=lambda _: allsat_callback_count(models_count_l),
-            )
-            self._models_count = models_count_l[0]
-            self._models = []
+        with self._timer.track_time("AllSMT time"):
+            if store_models:
+                models: list[list[mathsat.msat_term]] = []
+                mathsat.msat_all_sat(
+                    msat_env,
+                    self.get_converted_atoms(atoms),
+                    callback=lambda model: allsat_callback_store(model, models),
+                )
+                self._models_count = len(models)
+                with SuspendTypeChecking():
+                    self._models = [[converter.back(lit) for lit in model] for model in models]
+            else:
+                models_count_l = [0]
+                mathsat.msat_all_sat(
+                    msat_env,
+                    self.get_converted_atoms(atoms),
+                    callback=lambda _: allsat_callback_count(models_count_l),
+                )
+                self._models_count = models_count_l[0]
+                self._models = []
 
-        with SuspendTypeChecking():
-            self._tlemmas = [
-                self._converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(self._solver.msat_env())
-            ]
+        with SuspendTypeChecking(), self._timer.track_time("Lemmas conversion time"):
+            self._tlemmas = [self._converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
 
         if self._models_count == 0:
             return False
 
-        if self._computation_logger is not None:
-            self._computation_logger["Total models"] = self._models_count
+        self.log("Total models", self._models_count)
+        self.log("Lemmas", len(self._tlemmas))
 
         return True
 

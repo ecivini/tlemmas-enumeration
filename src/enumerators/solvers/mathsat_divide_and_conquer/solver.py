@@ -109,7 +109,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
 
         seen_tlemmas: set[EncodedClause] = set()
 
-        with self._timer.track_time("Partial AllSMT time"):
+        with self._timer.track_time("Divide time"):
             divide_enc_models, divide_enc_tlemmas = self._divide_strategy(
                 phi,
                 atoms,
@@ -122,20 +122,20 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
 
         seen_tlemmas.update(divide_enc_tlemmas)
 
-        if self._computation_logger is not None:
-            self._computation_logger["Partial models"] = len(divide_enc_models)
+        self.log("Divide models", len(divide_enc_models))
+        self.log("Divide lemmas", len(divide_enc_tlemmas))
 
-        with self._timer.track_time("Total AllSMT time"):
+        with self._timer.track_time("Conquer time"):
             if self._parallel_procs <= 1:
                 self.conquer_sequential(phi, atoms, seen_tlemmas, divide_enc_models, atom_manager, store_models)
             else:
                 self.conquer_parallel(phi, atoms, seen_tlemmas, divide_enc_models, atom_manager, store_models)
 
-        with SuspendTypeChecking(), self._timer.track_time("Decoding tlemmas time"):
+        with SuspendTypeChecking(), self._timer.track_time("Lemmas conversion time"):
             self._tlemmas = [atom_manager.decode_clause_pysmt(lemma) for lemma in seen_tlemmas]
 
-        if self._computation_logger is not None:
-            self._computation_logger["Total models"] = self._models_count
+        self.log("Total models", self._models_count)
+        self.log("Lemmas", len(self._tlemmas))
 
         return True
 
@@ -178,7 +178,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             if store_models:
                 msat_models_total = []
                 mathsat.msat_all_sat(
-                    self._solver_total.msat_env(),
+                    msat_env,
                     converted_atoms,
                     callback=lambda model: allsat_callback_store(model, msat_models_total),
                 )
@@ -188,7 +188,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
             else:
                 models_count_l = [0]
                 mathsat.msat_all_sat(
-                    self._solver_total.msat_env(),
+                    msat_env,
                     converted_atoms,
                     callback=lambda _: allsat_callback_count(models_count_l),
                 )
