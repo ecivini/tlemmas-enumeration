@@ -195,7 +195,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             while len(cubes) < min_cubes and batch_begin < len(proj_atoms):
                 atoms_to_project = proj_atoms[batch_begin:batch_end]
                 next_gen: list[list[mathsat.msat_term]] = []
-                desc = f"Dividing {len(cubes)}/{min_cubes} cubes | atoms {len(atoms_to_project)}"
+                desc = f"Dividing {len(cubes)}/{min_cubes} cubes | {batch_end} atoms ({len(atoms_to_project)} new)"
                 for cube in tqdm.tqdm(cubes, desc=desc, leave=False, disable=not show_progress):
                     solver.push()
                     for lit in cube:
