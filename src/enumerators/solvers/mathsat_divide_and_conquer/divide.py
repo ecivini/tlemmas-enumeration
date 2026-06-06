@@ -285,9 +285,9 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
         # Criterion B: extrapolated ceiling is too far below the target.
         # Even if bf holds for all remaining atoms, we can't get close to min_cubes.
         if remaining_atoms > 0:
-            bf = _estimate_bf_per_atom(current_cubes, previous_cubes, last_batch_size, total_projected_atoms)
-            max_reachable = current_cubes * (bf**remaining_atoms)
-            if max_reachable < min_cubes * 0.5:
+            global_bf = _estimate_bf_per_atom(current_cubes, 0, last_batch_size, total_projected_atoms)
+            max_reachable = current_cubes * (global_bf**remaining_atoms)
+            if max_reachable < min_cubes:
                 return True, low_prod_streak
 
         return False, low_prod_streak
