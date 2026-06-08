@@ -1,3 +1,5 @@
+"""Solver classes for All-SMT enumeration."""
+
 from enumerators.solvers.mathsat_divide_and_conquer import (
     DivideByPartialAllSMTStrategy,
     DivideByProjectedEnumerationStrategy,

@@ -5,6 +5,23 @@ from enumerators.solvers.solver import SMTEnumerator
 
 
 class WithProjectionWrapper(SMTEnumerator):
+    """Wrapper that projects All-SMT onto theory atoms only.
+
+    Filters the atom list passed to ``check_all_sat`` through
+    ``get_theory_atoms()``, removing any propositional (non-theory)
+    atoms before delegating to the base solver.
+
+    Composition:
+        Wrap any ``SMTEnumerator`` to restrict enumeration to theory atoms.
+        Stacking order matters: should be the outermost wrapper unless
+        you specifically need a different order.
+
+    Note:
+        ``WithPartitioningWrapper`` already projects onto theory atoms
+        internally, so wrapping a partitioned solver in
+        ``WithProjectionWrapper`` is redundant (but harmless).
+    """
+
     def __init__(
         self,
         base_solver: SMTEnumerator,
