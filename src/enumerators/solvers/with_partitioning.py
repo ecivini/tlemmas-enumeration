@@ -127,7 +127,6 @@ class WithPartitioningWrapper(SMTEnumerator):
         self._base_solver = base_solver
         self._partition_on_formula_components = partition_on_formula_components
         self._share_tlemmas_between_partitions = share_tlemmas_between_partitions
-        self._project_on_theory_atoms = True
         self._tlemmas = []
         self._models = []
         self._models_count = 0

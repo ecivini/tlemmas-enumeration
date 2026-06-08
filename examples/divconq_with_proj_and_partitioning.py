@@ -1,6 +1,7 @@
 from pysmt.shortcuts import Symbol, REAL
 from enumerators.solvers.mathsat_divide_and_conquer import MathSATDivideAndConquerEnumerator
 from enumerators.solvers.with_partitioning import WithPartitioningWrapper
+from enumerators.solvers.with_projection import WithProjectionWrapper
 
 # Create variables
 x = Symbol("x", REAL)
@@ -12,7 +13,7 @@ phi = (x + y >= 1) | (x + y <= 0)
 # Enumerate using AllSMT enumeration
 parallel_workers = 4
 enumerator = WithPartitioningWrapper(
-    MathSATDivideAndConquerEnumerator(parallel_procs=parallel_workers, project_on_theory_atoms=True)
+    WithProjectionWrapper(MathSATDivideAndConquerEnumerator(parallel_procs=parallel_workers))
 )
 result = enumerator.check_all_sat(phi)
 

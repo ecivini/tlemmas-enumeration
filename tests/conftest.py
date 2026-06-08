@@ -14,9 +14,9 @@ from enumerators.solvers import (
     DivideByProjectedEnumerationStrategy,
     MathSATDivideAndConquerEnumerator,
     WithPartitioningWrapper,
+    WithProjectionWrapper,
 )
 
-_DC_PROJ = [False, True]
 _DC_PROCS = [1, 8]
 _DC_STRATS = [DivideByPartialAllSMTStrategy, DivideByProjectedEnumerationStrategy]
 _DC_LEMMAS = [False, True]
@@ -28,22 +28,18 @@ def pytest_runtest_setup():
 
 
 SOLVERS = [
-    ("total", MathSATTotalEnumerator, {"project_on_theory_atoms": False}),
-    ("total-project", MathSATTotalEnumerator, {"project_on_theory_atoms": True}),
+    ("total", MathSATTotalEnumerator, {}),
     *[
         (
-            f"dc-{'proj' if proj else 'noproj'}-{procs}"
-            f"-divide-{'partial' if strat_cls is DivideByPartialAllSMTStrategy else 'project'}"
-            f"-{'lemmas' if store else 'nolemmas'}",
+            f"dc-{procs}-divide-{'partial' if strat_cls is DivideByPartialAllSMTStrategy else 'project'}-{'lemmas' if store else 'nolemmas'}",
             MathSATDivideAndConquerEnumerator,
             {
-                "project_on_theory_atoms": proj,
                 "parallel_procs": procs,
                 "divide_strategy": strat_cls(),
                 "use_divide_tlemmas": store,
             },
         )
-        for proj, procs, strat_cls, store in product(_DC_PROJ, _DC_PROCS, _DC_STRATS, _DC_LEMMAS)
+        for procs, strat_cls, store in product(_DC_PROCS, _DC_STRATS, _DC_LEMMAS)
     ],
 ]
 
@@ -55,21 +51,41 @@ def solver(request: pytest.FixtureRequest) -> SMTEnumerator:
 
 
 @pytest.fixture(
-    params=["raw", "partitioned", "partitioned-on-components", "partitioned-on-components-no-tlemmas-share"],
-    ids=["mode:raw", "mode:part", "mode:part-comp", "mode:part-comp-noshare"],
+    params=[
+        "raw",
+        "proj",
+        "partitioned",
+        "partitioned-noshare",
+        "partitioned-on-comp",
+        "partitioned-on-comp-noshare",
+    ],
+    ids=[
+        "mode:raw",
+        "mode:proj",
+        "mode:part",
+        "mode:part-noshare",
+        "mode:part-comp",
+        "mode:part-comp-noshare",
+    ],
 )
 def wsolver(solver: SMTEnumerator, request: pytest.FixtureRequest) -> SMTEnumerator:
     if request.param == "raw":
         return solver
+    elif request.param == "proj":
+        return WithProjectionWrapper(solver)
     elif request.param == "partitioned":
         return WithPartitioningWrapper(
             base_solver=solver, partition_on_formula_components=False, share_tlemmas_between_partitions=True
         )
-    elif request.param == "partitioned-on-components":
+    elif request.param == "partitioned-noshare":
+        return WithPartitioningWrapper(
+            base_solver=solver, partition_on_formula_components=False, share_tlemmas_between_partitions=False
+        )
+    elif request.param == "partitioned-on-comp":
         return WithPartitioningWrapper(
             base_solver=solver, partition_on_formula_components=True, share_tlemmas_between_partitions=True
         )
-    elif request.param == "partitioned-on-components-no-tlemmas-share":
+    elif request.param == "partitioned-on-comp-noshare":
         return WithPartitioningWrapper(
             base_solver=solver, partition_on_formula_components=True, share_tlemmas_between_partitions=False
         )
@@ -81,7 +97,7 @@ def wsolver(solver: SMTEnumerator, request: pytest.FixtureRequest) -> SMTEnumera
 def solver_info(wsolver: SMTEnumerator) -> tuple[SMTEnumerator, bool, bool]:
     return (
         wsolver,
-        getattr(wsolver, "_project_on_theory_atoms", False),
+        isinstance(wsolver, (WithProjectionWrapper, WithPartitioningWrapper)),
         isinstance(wsolver, WithPartitioningWrapper),
     )
 

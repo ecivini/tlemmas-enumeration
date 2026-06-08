@@ -6,7 +6,6 @@ import mathsat
 from pysmt.fnode import FNode
 from pysmt.shortcuts import Solver
 
-from enumerators.formula import get_theory_atoms
 from enumerators.solvers.mathsat_utils import (
     MSAT_TOTAL_ENUM_OPTIONS,
     allsat_callback_count,
@@ -22,13 +21,11 @@ class MathSATTotalEnumerator(SMTEnumerator):
     def __init__(
         self,
         computation_logger: dict | None = None,
-        project_on_theory_atoms: bool = True,
     ) -> None:
         super().__init__(computation_logger)
         solver_options_dict = MSAT_TOTAL_ENUM_OPTIONS
         self._solver = Solver("msat", solver_options=solver_options_dict)
         self._converter = self._solver.converter
-        self._project_on_theory_atoms = project_on_theory_atoms
         self.reset()
 
     def reset(self):
@@ -43,8 +40,6 @@ class MathSATTotalEnumerator(SMTEnumerator):
         self.reset()
 
         atoms = list(phi.get_atoms()) if atoms is None else atoms
-        if self._project_on_theory_atoms:
-            atoms = get_theory_atoms(atoms)
         self.atoms = atoms
 
         msat_env = self._solver.msat_env()
