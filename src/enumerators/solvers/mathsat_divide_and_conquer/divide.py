@@ -111,10 +111,22 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
     Args:
         min_cubes: Target number of cubes.  If ``0`` (default), it is computed
             as ``n_workers * 20`` at call time.
+        min_growth_threshold: Minimum cube growth ratio
+            (``next_gen / cubes``) below which a batch is considered
+            low-productivity.  Defaults to 1.01.
+        max_low_prod_streak: Consecutive low-productivity batches allowed
+            before early-exiting the divide.  Defaults to 3.
     """
 
-    def __init__(self, min_cubes: int = 0):
+    def __init__(
+        self,
+        min_cubes: int = 0,
+        min_growth_threshold: float = 1.01,
+        max_low_prod_streak: int = 4,
+    ):
         self._min_cubes = min_cubes
+        self._min_growth_threshold = min_growth_threshold
+        self._max_low_prod_streak = max_low_prod_streak
 
     def compute_min_cubes(self, n_workers: int) -> int:
         """Return the effective minimum number of cubes."""
@@ -179,10 +191,11 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             msat_env = solver.msat_env()
             batch_begin = 0
             batch_end = max(1, min(len(proj_atoms), (min_cubes - 1).bit_length()))
+            low_prod_streak = 0
             while len(cubes) < min_cubes and batch_begin < len(proj_atoms):
                 atoms_to_project = proj_atoms[batch_begin:batch_end]
                 next_gen: list[list[mathsat.msat_term]] = []
-                desc = f"Dividing {len(cubes)}/{min_cubes} cubes | atoms {len(atoms_to_project)}"
+                desc = f"Dividing {len(cubes)}/{min_cubes} cubes | {batch_end} atoms ({len(atoms_to_project)} new)"
                 for cube in tqdm.tqdm(cubes, desc=desc, leave=False, disable=not show_progress):
                     solver.push()
                     for lit in cube:
@@ -196,13 +209,31 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
                     tlemmas_raw.update(mathsat.msat_get_theory_lemmas(msat_env))
                     next_gen.extend([cube + cube_ext for cube_ext in cube_extensions])
                     solver.pop()
+
+                # Early exit: unsat
                 if not next_gen:
                     break
+
+                # Early exit: low prod
+                last_batch_size = batch_end - batch_begin
+                should_stop, low_prod_streak = self._check_early_stopping(
+                    current_cubes=len(next_gen),
+                    previous_cubes=len(cubes),
+                    min_cubes=min_cubes,
+                    last_batch_size=last_batch_size,
+                    total_projected_atoms=batch_end,
+                    remaining_atoms=len(proj_atoms) - batch_end,
+                    low_prod_streak=low_prod_streak,
+                )
+                if should_stop:
+                    cubes = next_gen
+                    break
+
                 batch_size = self._next_batch_size(
                     current_cubes=len(next_gen),
                     previous_cubes=len(cubes),
                     min_cubes=min_cubes,
-                    last_batch_size=batch_end - batch_begin,
+                    last_batch_size=last_batch_size,
                     total_projected_atoms=batch_end,
                 )
                 cubes = next_gen
@@ -213,6 +244,53 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
         pop_env()
 
         return cubes_encoded, tlemmas_encoded
+
+    def _check_early_stopping(
+        self,
+        current_cubes: int,
+        previous_cubes: int,
+        min_cubes: int,
+        last_batch_size: int,
+        total_projected_atoms: int,
+        remaining_atoms: int,
+        low_prod_streak: int,
+    ) -> tuple[bool, int]:
+        """Check whether the divide loop should stop early.
+
+        Args:
+            current_cubes: Cube count after the last batch.
+            previous_cubes: Cube count before the last batch.
+            min_cubes: Target cube count.
+            last_batch_size: Atoms projected in the last batch.
+            total_projected_atoms: Total atoms projected so far.
+            remaining_atoms: Atoms not yet projected.
+            low_prod_streak: Current consecutive low-productivity batch count.
+
+        Returns:
+            ``(should_stop, updated_low_prod_streak)``.
+        """
+        if previous_cubes == 0:
+            return False, low_prod_streak
+
+        growth_ratio = current_cubes / previous_cubes
+
+        # Criterion A: persistent low growth over multiple batches.
+        if growth_ratio < self._min_growth_threshold:
+            low_prod_streak += 1
+        else:
+            low_prod_streak = 0
+        if low_prod_streak >= self._max_low_prod_streak:
+            return True, low_prod_streak
+
+        # Criterion B: extrapolated ceiling is too far below the target.
+        # Even if bf holds for all remaining atoms, we can't get close to min_cubes.
+        if remaining_atoms > 0:
+            global_bf = _estimate_bf_per_atom(current_cubes, 0, last_batch_size, total_projected_atoms)
+            max_reachable = current_cubes * (global_bf**remaining_atoms)
+            if max_reachable < min_cubes:
+                return True, low_prod_streak
+
+        return False, low_prod_streak
 
     @staticmethod
     def _next_batch_size(
@@ -238,6 +316,7 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
 
         Args:
             current_cubes: Number of cubes currently available.
+            previous_cubes: Number of cubes from the previous iteration.
             min_cubes: Target number of cubes.
             last_batch_size: Number of atoms projected in the previous iteration.
             total_projected_atoms: Total of atoms projected so far.
@@ -249,13 +328,11 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             return 0
 
         # Estimate of the average branching factor contributed by a single projected atom.
-        # 1. Estimate branching factor using ONLY the most recent batch's performance
-        if previous_cubes > 0 and last_batch_size > 0:
-            estimated_bf_per_atom = (current_cubes / previous_cubes) ** (1.0 / last_batch_size)
-        else:
-            estimated_bf_per_atom = current_cubes ** (1.0 / total_projected_atoms)
+        estimated_bf_per_atom = _estimate_bf_per_atom(
+            current_cubes, previous_cubes, last_batch_size, total_projected_atoms
+        )
 
-        # 2. If recent growth is negligible, scale up aggressively (exponential backoff)
+        # If recent growth is negligible, scale up aggressively (exponential backoff)
         if estimated_bf_per_atom <= 1.05:
             return max(1, 2 * last_batch_size)
 
@@ -270,3 +347,29 @@ class DivideByProjectedEnumerationStrategy(DivideStrategy):
             1,
             min(k_needed, 2 * last_batch_size),
         )
+
+
+def _estimate_bf_per_atom(
+    current_cubes: int,
+    previous_cubes: int,
+    last_batch_size: int,
+    total_projected_atoms: int,
+) -> float:
+    """Estimate the average per-atom branching factor.
+
+    If a previous cube count is available, uses only the most recent batch's
+    performance.  Otherwise falls back to a global estimate over all projected
+    atoms so far.
+
+    Args:
+        current_cubes: Cube count after the last batch.
+        previous_cubes: Cube count before the last batch (0 if first iteration).
+        last_batch_size: Number of atoms projected in the last batch.
+        total_projected_atoms: Total atoms projected so far.
+
+    Returns:
+        Estimated multiplicative cube increase per projected atom.
+    """
+    if previous_cubes > 0 and last_batch_size > 0:
+        return (current_cubes / previous_cubes) ** (1.0 / last_batch_size)
+    return current_cubes ** (1.0 / total_projected_atoms)
