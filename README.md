@@ -17,6 +17,32 @@ $ pip install https://github.com/ecivini/tlemmas-enumeration.git
 $ pysmt-install --msat
 ```
 
+## Architecture
+
+Solvers use a decorator pattern based on the `SMTEnumerator` interface:
+
+- **Base solvers** implement core enumeration algorithms:
+  - `MathSATTotalEnumerator`: single-shot enumeration
+  - `MathSATDivideAndConquerEnumerator`: parallel divide-&-conquer enumeration
+- **Wrapper classes** add cross-cutting concerns:
+  - `WithProjectionWrapper`: restricts to theory atoms only
+  - `WithPartitioningWrapper`: partitions atoms in symbol-disjoint components
+
+E.g.:
+
+```python
+from enumerators.solvers import MathSATDivideAndConquerEnumerator
+from enumerators.solvers import WithPartitioningWrapper
+
+enumerator = WithPartitioningWrapper(
+    MathSATDivideAndConquerEnumerator(parallel_procs=4)
+)
+```
+
+Note that `WithPartitioningWrapper` already projects onto theory atoms
+internally, so wrapping it in `WithProjectionWrapper` is redundant.
+See `examples/` for more usage patterns.
+
 ## Quick Start
 
 ```python
@@ -39,3 +65,4 @@ lemmas = enumerator.get_theory_lemmas()
 print(f"Found {len(lemmas)} theory lemmas")
 print(f"Model count: {enumerator.get_models_count()}")
 ```
+

@@ -128,7 +128,7 @@ def test_partitioned_component_count(
 
     computation_logger = {}
     partitioned_solver = WithPartitioningWrapper(
-        base_solver=MathSATTotalEnumerator(project_on_theory_atoms=True),
+        base_solver=MathSATTotalEnumerator(),
         partition_on_formula_components=True,
         share_tlemmas_between_partitions=share_tlemmas_between_partitions,
         computation_logger=computation_logger,

@@ -11,9 +11,7 @@ phi = (x + y >= 1) | (x + y <= 0)
 
 # Enumerate using AllSMT enumeration
 parallel_workers = 4
-enumerator = WithPartitioningWrapper(
-    MathSATDivideAndConquerEnumerator(parallel_procs=parallel_workers, project_on_theory_atoms=True)
-)
+enumerator = WithPartitioningWrapper(MathSATDivideAndConquerEnumerator(parallel_procs=parallel_workers))
 result = enumerator.check_all_sat(phi)
 
 # Get the theory lemmas

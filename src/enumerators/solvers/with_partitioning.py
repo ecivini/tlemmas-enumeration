@@ -116,6 +116,25 @@ def get_partition_relevant_lemmas(
 
 
 class WithPartitioningWrapper(SMTEnumerator):
+    """Wrapper that partitions theory atoms by variable connectivity.
+
+    Groups theory atoms into independent partitions based on shared
+    free variables, and solves each partition separately. This reduces
+    the problem size per solver call and can improve performance on
+    formulas with disconnected variable clusters.
+
+    Also projects onto theory atoms internally (via ``get_theory_atoms()``),
+    so explicit ``WithProjectionWrapper`` wrapping is redundant.
+
+    Args:
+        base_solver: The solver to wrap.
+        partition_on_formula_components: If True, further restrict each
+            partition to only the formula components that share variables
+            with the partition's atoms.
+        share_tlemmas_between_partitions: If True, lemmas learned in
+            earlier partitions are passed to later partitions.
+    """
+
     def __init__(
         self,
         base_solver: SMTEnumerator,
@@ -127,7 +146,6 @@ class WithPartitioningWrapper(SMTEnumerator):
         self._base_solver = base_solver
         self._partition_on_formula_components = partition_on_formula_components
         self._share_tlemmas_between_partitions = share_tlemmas_between_partitions
-        self._project_on_theory_atoms = True
         self._tlemmas = []
         self._models = []
         self._models_count = 0

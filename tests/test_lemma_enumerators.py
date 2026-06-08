@@ -240,7 +240,7 @@ def test_lemmas_correctness(
     phi_abstr = bool_walker.abstract(phi)
     assert len(phi_abstr.get_atoms()) == len(phi_atoms), "Abstraction should preserve atoms of phi"
 
-    solver_abstr = MathSATTotalEnumerator(project_on_theory_atoms=False)
+    solver_abstr = MathSATTotalEnumerator()
     abstr_sat = solver_abstr.check_all_sat(
         phi_and_lemmas_abstr,
         atoms=list(phi_abstr.get_atoms()),

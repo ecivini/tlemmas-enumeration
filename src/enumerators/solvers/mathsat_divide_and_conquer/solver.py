@@ -6,7 +6,6 @@ from pysmt.fnode import FNode
 from pysmt.shortcuts import Solver
 from pysmt.solvers.msat import MathSAT5Solver
 
-from enumerators.formula import get_theory_atoms
 from enumerators.solvers.mathsat_divide_and_conquer.conquer import initialize_worker, parallel_worker
 from enumerators.solvers.mathsat_divide_and_conquer.divide import (
     DivideByPartialAllSMTStrategy,
@@ -34,7 +33,6 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
 
     Args:
         computation_logger: Optional dict for profiling timings and counters.
-        project_on_theory_atoms: If ``True``, enumeration is projected on theory atoms only
         parallel_procs: Number of parallel worker processes for the total enumeration phase.
         divide_strategy: A :class:`DivideStrategy` instance.  If ``None``,
             defaults to :class:`DivideByPartialAllSMTStrategy`.
@@ -49,7 +47,6 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
     def __init__(
         self,
         computation_logger: dict | None = None,
-        project_on_theory_atoms: bool = True,
         parallel_procs: int = 1,
         divide_strategy: DivideStrategy | None = None,
         maxtasksperchild: int = 20,
@@ -62,7 +59,6 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         self._solver_total: MathSAT5Solver = Solver("msat", solver_options=MSAT_TOTAL_ENUM_OPTIONS)
         self.reset()
         self._converter_total = self._solver_total.converter
-        self._project_on_theory_atoms = project_on_theory_atoms
         self._parallel_procs = parallel_procs
         self._divide_strategy = divide_strategy if divide_strategy is not None else DivideByPartialAllSMTStrategy()
         self._maxtasksperchild = maxtasksperchild
@@ -80,8 +76,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
 
         Args:
             phi: Formula to enumerate truth assignments for.
-            atoms: Atoms to project on.  If ``None``, all atoms of ``phi`` are
-                used (filtered by ``project_on_theory_atoms`` if enabled).
+            atoms: Atoms to project on.  If ``None``, all atoms of ``phi`` are used.
             store_models: If ``True``, store enumerated models in-memory
                 (accessible via :meth:`get_models`).  If ``False``, only count
                 them (:meth:`get_models_count`).
@@ -93,8 +88,6 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
         self.check_supports(phi)
         self.reset()
         atoms = list(phi.get_atoms()) if atoms is None else atoms
-        if self._project_on_theory_atoms:
-            atoms = get_theory_atoms(atoms)
         self.atoms = atoms
 
         converter = self._converter_total
