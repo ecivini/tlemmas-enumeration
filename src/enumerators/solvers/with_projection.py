@@ -25,7 +25,7 @@ class WithProjectionWrapper(SMTEnumerator):
     def __init__(
         self,
         base_solver: SMTEnumerator,
-        computation_logger: dict | None = None,
+        computation_logger: dict[str, object] | None = None,
     ) -> None:
         self._base_solver = base_solver
         super().__init__(computation_logger)
@@ -56,9 +56,9 @@ class WithProjectionWrapper(SMTEnumerator):
         return self._base_solver.get_models_count()
 
     @property
-    def computation_logger(self) -> dict | None:
+    def computation_logger(self) -> dict[str, object] | None:
         return self._base_solver.computation_logger
 
     @computation_logger.setter
-    def computation_logger(self, value: dict | None) -> None:
+    def computation_logger(self, value: dict[str, object] | None) -> None:
         self._base_solver.computation_logger = value

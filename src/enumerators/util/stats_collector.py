@@ -2,10 +2,8 @@ import time
 from contextlib import contextmanager
 
 
-class Timer:
-    """Context manager for timing code blocks and storing results in a computation logger dict."""
-
-    def __init__(self, computation_logger: dict | None = None):
+class StatsCollector:
+    def __init__(self, computation_logger: dict[str, object] | None = None):
         self._computation_logger = computation_logger
 
     @contextmanager
@@ -19,4 +17,10 @@ class Timer:
             try:
                 yield
             finally:
-                self._computation_logger[key] += (time.perf_counter_ns() - start) / 1e9
+                prev = self._computation_logger[key]
+                assert isinstance(prev, float)
+                self._computation_logger[key] = prev + (time.perf_counter_ns() - start) / 1e9
+
+    def log(self, key: str, value: object) -> None:
+        if self._computation_logger is not None:
+            self._computation_logger[key] = value
