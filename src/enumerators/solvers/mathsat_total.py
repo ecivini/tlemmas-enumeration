@@ -20,7 +20,7 @@ class MathSATTotalEnumerator(SMTEnumerator):
 
     def __init__(
         self,
-        computation_logger: dict | None = None,
+        computation_logger: dict[str, object] | None = None,
     ) -> None:
         super().__init__(computation_logger)
         solver_options_dict = MSAT_TOTAL_ENUM_OPTIONS
@@ -51,7 +51,7 @@ class MathSATTotalEnumerator(SMTEnumerator):
 
         self._solver.add_assertion(phi)
 
-        with self._timer.track_time("AllSMT time"):
+        with self._stats.track_time("AllSMT time"):
             if store_models:
                 models: list[list[mathsat.msat_term]] = []
                 mathsat.msat_all_sat(
@@ -72,14 +72,14 @@ class MathSATTotalEnumerator(SMTEnumerator):
                 self._models_count = models_count_l[0]
                 self._models = []
 
-        with SuspendTypeChecking(), self._timer.track_time("Lemmas conversion time"):
+        with SuspendTypeChecking(), self._stats.track_time("Lemmas conversion time"):
             self._tlemmas = [self._converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
 
         if self._models_count == 0:
             return False
 
-        self.log("Total models", self._models_count)
-        self.log("Lemmas", len(self._tlemmas))
+        self._stats.log("Total models", self._models_count)
+        self._stats.log("Lemmas", len(self._tlemmas))
 
         return True
 

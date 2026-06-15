@@ -1,11 +1,10 @@
 """interface that all solvers must implement."""
 
 from abc import ABC, abstractmethod
-from typing import Any
 
 from pysmt.fnode import FNode
 
-from enumerators.util.timer import Timer
+from enumerators.util.stats_collector import StatsCollector
 from enumerators.walkers.term_ite_checker import TermIteChecker
 
 
@@ -15,22 +14,18 @@ class SMTEnumerator(ABC):
     This interface must be implemented by all the solvers that are used to compute all-SMT.
     """
 
-    def __init__(self, computation_logger: dict | None = None):
+    def __init__(self, computation_logger: dict[str, object] | None = None):
         self._tlemmas = []
         self.computation_logger = computation_logger
 
     @property
-    def computation_logger(self) -> dict | None:
+    def computation_logger(self) -> dict[str, object] | None:
         return self._computation_logger
 
     @computation_logger.setter
-    def computation_logger(self, value: dict | None) -> None:
+    def computation_logger(self, value: dict[str, object] | None) -> None:
         self._computation_logger = value
-        self._timer = Timer(self._computation_logger)
-
-    def log(self, key: str, value: Any) -> None:
-        if self._computation_logger is not None:
-            self._computation_logger[key] = value
+        self._stats = StatsCollector(self._computation_logger)
 
     @abstractmethod
     def reset(self) -> None:

@@ -140,7 +140,7 @@ class WithPartitioningWrapper(SMTEnumerator):
         base_solver: SMTEnumerator,
         partition_on_formula_components: bool = True,
         share_tlemmas_between_partitions: bool = False,
-        computation_logger: dict | None = None,
+        computation_logger: dict[str, object] | None = None,
     ):
         super().__init__(computation_logger)
         self._base_solver = base_solver
@@ -161,7 +161,7 @@ class WithPartitioningWrapper(SMTEnumerator):
         atoms = phi.get_atoms() if atoms is None else atoms
         atoms = get_theory_atoms(atoms)
         # Partition atoms based on their variables
-        with self._timer.track_time("Partitioning time"):
+        with self._stats.track_time("Partitioning time"):
             partitions = partition_atoms(atoms)
 
             # partition the formula based on the And-conjoined components
@@ -169,17 +169,17 @@ class WithPartitioningWrapper(SMTEnumerator):
             if self._partition_on_formula_components:
                 component_to_atoms, atom_to_components = get_conjoined_components(phi)
 
-        self.log("Number of partitions", len(partitions))
+        self._stats.log("Number of partitions", len(partitions))
 
         # Solve each partition separately
         overall_result = True
-        partitions_loggers: list[dict] = []
+        partitions_loggers: list[dict[str, object]] = []
         for part_atoms in sorted(partitions, key=lambda x: len(x)):
             iter_start = time.perf_counter_ns()
             print("Solving partition with {} atoms...".format(len(part_atoms)))
             self._base_solver.reset()
             if self.computation_logger is not None:
-                partition_logger: dict = {}
+                partition_logger: dict[str, object] = {}
                 self._base_solver.computation_logger = partition_logger
                 partitions_loggers.append(partition_logger)
 
@@ -209,9 +209,9 @@ class WithPartitioningWrapper(SMTEnumerator):
         if self.computation_logger is not None:
             # Restore base solver's computation logger after changing it for each partition
             self._base_solver.computation_logger = self.computation_logger
-            self.log("Partitions", partitions_loggers)
-            self.log("Total models", sum(plogger["Total models"] for plogger in partitions_loggers))
-            self.log("Lemmas", sum(plogger["Lemmas"] for plogger in partitions_loggers))
+            self._stats.log("Partitions", partitions_loggers)
+            self._stats.log("Total models", sum(plogger["Total models"] for plogger in partitions_loggers))
+            self._stats.log("Lemmas", sum(plogger["Lemmas"] for plogger in partitions_loggers))
         return overall_result
 
     def get_theory_lemmas(self) -> list[FNode]:
