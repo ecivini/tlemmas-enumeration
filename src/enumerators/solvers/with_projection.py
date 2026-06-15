@@ -1,4 +1,5 @@
 from pysmt.fnode import FNode
+from pysmt.solvers.msat import MSatConverter
 
 from enumerators.formula import get_theory_atoms
 from enumerators.solvers.solver import SMTEnumerator
@@ -46,7 +47,7 @@ class WithProjectionWrapper(SMTEnumerator):
     def get_theory_lemmas(self) -> list[FNode]:
         return self._base_solver.get_theory_lemmas()
 
-    def get_converter(self) -> object:
+    def get_converter(self) -> MSatConverter:
         return self._base_solver.get_converter()
 
     def get_models(self) -> list:
