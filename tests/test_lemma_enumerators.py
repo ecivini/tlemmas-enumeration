@@ -6,11 +6,11 @@ from typing import Callable
 import pytest
 from pysmt.fnode import FNode
 from pysmt.oracles import get_logic
-from pysmt.shortcuts import Array, And, Int, Real, Solver, ToReal
+from pysmt.shortcuts import And, Array, Int, Real, Solver, ToReal, read_smtlib
 from pysmt.typing import INT
 
-from enumerators.formula import get_normalized, read_phi
-from enumerators.solvers import SMTEnumerator, MathSATTotalEnumerator, MathSATDivideAndConquerEnumerator
+from enumerators.formula import get_normalized
+from enumerators.solvers import MathSATDivideAndConquerEnumerator, MathSATTotalEnumerator, SMTEnumerator
 from enumerators.walkers.walker_bool_abstraction import BooleanAbstractionWalker
 from enumerators.walkers.walker_refinement import RefinementWalker
 
@@ -151,10 +151,10 @@ ALL_RAW_TEST_CASES = [
         0,
         0,
     ),
-    TCase("Test lemmas", lambda _: read_phi(str(INPUT_FILES_PATH / "test_lemmas.smt2")), 1, 1, 2),
-    TCase("Planning", lambda _: read_phi(str(INPUT_FILES_PATH / "6_2.smt2")), 360, 360, 21),
-    TCase("Randgen", lambda _: read_phi(str(INPUT_FILES_PATH / "rng.smt")), 12, 2, 2),
-    TCase("Randgen big", lambda _: read_phi(str(INPUT_FILES_PATH / "b10_d5_r10_s12345_01.smt2")), 88, 16, 16),
+    TCase("Test lemmas", lambda _: read_smtlib(str(INPUT_FILES_PATH / "test_lemmas.smt2")), 1, 1, 2),
+    TCase("Planning", lambda _: read_smtlib(str(INPUT_FILES_PATH / "6_2.smt2")), 360, 360, 21),
+    TCase("Randgen", lambda _: read_smtlib(str(INPUT_FILES_PATH / "rng.smt")), 12, 2, 2),
+    TCase("Randgen big", lambda _: read_smtlib(str(INPUT_FILES_PATH / "b10_d5_r10_s12345_01.smt2")), 88, 16, 16),
 ]
 
 
