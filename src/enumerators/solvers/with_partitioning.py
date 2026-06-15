@@ -5,6 +5,7 @@ from typing import Collection
 
 from pysmt.fnode import FNode
 from pysmt.shortcuts import And
+from pysmt.solvers.msat import MSatConverter
 
 from enumerators.formula import get_theory_atoms
 from enumerators.solvers.solver import SMTEnumerator
@@ -217,7 +218,7 @@ class WithPartitioningWrapper(SMTEnumerator):
     def get_theory_lemmas(self) -> list[FNode]:
         return self._tlemmas
 
-    def get_converter(self) -> object:
+    def get_converter(self) -> MSatConverter:
         return self._base_solver.get_converter()
 
     def get_models(self) -> list:

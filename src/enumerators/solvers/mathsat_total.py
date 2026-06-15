@@ -1,10 +1,11 @@
 """this module handles interactions with the mathsat solver"""
 
-from typing import Iterable
+from typing import Iterable, cast
 
 import mathsat
 from pysmt.fnode import FNode
 from pysmt.shortcuts import Solver
+from pysmt.solvers.msat import MSatConverter
 
 from enumerators.solvers.mathsat_utils import (
     MSAT_TOTAL_ENUM_OPTIONS,
@@ -25,7 +26,7 @@ class MathSATTotalEnumerator(SMTEnumerator):
         super().__init__(computation_logger)
         solver_options_dict = MSAT_TOTAL_ENUM_OPTIONS
         self._solver = Solver("msat", solver_options=solver_options_dict)
-        self._converter = self._solver.converter
+        self._converter = cast(MSatConverter, self._solver.converter)
         self.reset()
 
     def reset(self):
@@ -43,10 +44,9 @@ class MathSATTotalEnumerator(SMTEnumerator):
         self.atoms = atoms
 
         msat_env = self._solver.msat_env()
-        converter = self._solver.converter
 
         if not (is_sat := self._solver.is_sat(phi)) or not atoms:
-            self._tlemmas = [converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
+            self._tlemmas = [self._converter.back(lemma) for lemma in mathsat.msat_get_theory_lemmas(msat_env)]
             return is_sat
 
         self._solver.add_assertion(phi)
@@ -61,7 +61,7 @@ class MathSATTotalEnumerator(SMTEnumerator):
                 )
                 self._models_count = len(models)
                 with SuspendTypeChecking():
-                    self._models = [[converter.back(lit) for lit in model] for model in models]
+                    self._models = [[self._converter.back(lit) for lit in model] for model in models]
             else:
                 models_count_l = [0]
                 mathsat.msat_all_sat(
@@ -95,7 +95,7 @@ class MathSATTotalEnumerator(SMTEnumerator):
         """Returns the models found during the All-SAT computation"""
         return self._models_count
 
-    def get_converter(self) -> object:
+    def get_converter(self) -> MSatConverter:
         """Returns the converter used for the normalization of T-atoms"""
         return self._converter
 

@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 
 from pysmt.fnode import FNode
+from pysmt.solvers.msat import MSatConverter
 
 from enumerators.util.stats_collector import StatsCollector
 from enumerators.walkers.term_ite_checker import TermIteChecker
@@ -52,7 +53,7 @@ class SMTEnumerator(ABC):
         pass
 
     @abstractmethod
-    def get_converter(self) -> object:
+    def get_converter(self) -> MSatConverter:
         """return the converter for normalization of T-atoms"""
         pass
 

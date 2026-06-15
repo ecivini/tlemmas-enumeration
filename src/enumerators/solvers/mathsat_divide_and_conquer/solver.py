@@ -4,7 +4,7 @@ import mathsat
 import tqdm
 from pysmt.fnode import FNode
 from pysmt.shortcuts import Solver
-from pysmt.solvers.msat import MathSAT5Solver
+from pysmt.solvers.msat import MSatConverter, MathSAT5Solver
 
 from enumerators.solvers.mathsat_divide_and_conquer.conquer import initialize_worker, parallel_worker
 from enumerators.solvers.mathsat_divide_and_conquer.divide import (
@@ -143,7 +143,7 @@ class MathSATDivideAndConquerEnumerator(SMTEnumerator):
     def get_models_count(self) -> int:
         return self._models_count
 
-    def get_converter(self):
+    def get_converter(self) -> MSatConverter:
         """Returns the converter used for the normalization of T-atoms"""
         return self._converter_total
 
