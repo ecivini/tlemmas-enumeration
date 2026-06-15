@@ -1,6 +1,7 @@
 from pysmt.fnode import FNode
 from pysmt.shortcuts import is_valid
 from pysmt.typing import BOOL
+
 from enumerators.walkers.walker_bool_abstraction import BooleanAbstractionWalker
 from enumerators.walkers.walker_refinement import RefinementWalker
 
@@ -31,13 +32,13 @@ def test_bool_abstraction_preserves_boolean_atoms(a: FNode, x: FNode, y: FNode) 
 
 def test_boolean_abstraction_and_refinement_round_trip(x: FNode, y: FNode, a: FNode) -> None:
     phi: FNode = a | ((x.Equals(10) | y.Equals(0)) & x.Equals(0))
-    phi_atoms: set[FNode] = phi.get_atoms()
+    phi_atoms = phi.get_atoms()
 
     abstr_walker = BooleanAbstractionWalker()
     abstr_phi: FNode = abstr_walker.abstract(phi)
     abstraction = abstr_walker.abstraction
 
-    abstr_phi_atoms: set[FNode] = abstr_phi.get_atoms()
+    abstr_phi_atoms = abstr_phi.get_atoms()
     assert len(abstraction) == 3
     assert all(atom.is_symbol(BOOL) for atom in abstr_phi_atoms)
     assert all(abstr.is_symbol(BOOL) for abstr in abstraction.values())

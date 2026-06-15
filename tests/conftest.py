@@ -1,18 +1,19 @@
 from itertools import product
+from typing import Generator, cast
 
 import pysmt.environment
-from pysmt.fnode import FNode
 import pytest
-from pysmt.shortcuts import REAL, Symbol
-from pysmt.typing import ArrayType, BOOL, INT, BV8
+from pysmt.fnode import FNode
+from pysmt.shortcuts import REAL, Solver, Symbol, read_smtlib
+from pysmt.solvers.msat import MathSAT5Solver, MSatConverter
+from pysmt.typing import BOOL, BV8, INT, ArrayType
 
-from enumerators.formula import read_phi
 from enumerators.solvers import (
-    SMTEnumerator,
-    MathSATTotalEnumerator,
     DivideByPartialAllSMTStrategy,
     DivideByProjectedEnumerationStrategy,
     MathSATDivideAndConquerEnumerator,
+    MathSATTotalEnumerator,
+    SMTEnumerator,
     WithPartitioningWrapper,
     WithProjectionWrapper,
 )
@@ -100,6 +101,13 @@ def solver_info(wsolver: SMTEnumerator) -> tuple[SMTEnumerator, bool, bool]:
         isinstance(wsolver, (WithProjectionWrapper, WithPartitioningWrapper)),
         isinstance(wsolver, WithPartitioningWrapper),
     )
+
+
+@pytest.fixture
+def converter() -> Generator[MSatConverter, None, None]:
+    with Solver("msat") as msat:
+        msat: MathSAT5Solver
+        yield cast(MSatConverter, msat.converter)
 
 
 # ---- Real variables ----
@@ -253,7 +261,7 @@ def prop_valid_formula(x: FNode, y: FNode) -> FNode:
 @pytest.fixture
 def rangen_formula() -> FNode:
     """Rangen formula fixture"""
-    return read_phi("./tests/items/rng.smt")
+    return read_smtlib("./tests/items/rng.smt")
 
 
 @pytest.fixture(params=["sat_formula", "unsat_formula", "valid_formula", "rangen_formula"])

@@ -1,18 +1,8 @@
-from typing import Generator
-from pysmt.solvers.msat import MSatConverter
-import pytest
-from allsat_cnf.utils import MathSAT5Solver
 from pysmt.fnode import FNode
-from pysmt.shortcuts import And, Solver
+from pysmt.shortcuts import And
+from pysmt.solvers.msat import MSatConverter
 
 from enumerators.walkers.normalizer import NormalizerWalker
-
-
-@pytest.fixture
-def converter() -> Generator[MSatConverter, None, None]:
-    with Solver("msat") as msat:
-        msat: MathSAT5Solver
-        yield msat.converter
 
 
 def test_normalizer_walker(x: FNode, y: FNode, a: FNode, converter: MSatConverter) -> None:

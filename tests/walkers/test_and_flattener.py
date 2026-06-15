@@ -1,9 +1,10 @@
 from typing import Callable
+
+import pytest
 from pysmt.fnode import FNode
-from pysmt.shortcuts import is_valid, And
+from pysmt.shortcuts import And, is_valid
 
 from enumerators.walkers.and_flattener import AndFlattener
-import pytest
 
 FormulaBuilder = Callable[[dict[str, FNode]], FNode]
 FormulasConjunctionBuilder = Callable[[dict[str, FNode]], frozenset[FNode]]
@@ -17,12 +18,14 @@ TEST_CASES: list[tuple[FormulaBuilder, FormulasConjunctionBuilder]] = [
         lambda s: frozenset([s["A"], (s["B"] | (s["B"] & s["C"]))]),
     ),
     (
-        lambda s: And(
-            s["A"],
-            (s["B"] & s["C"]),
-            (s["A"] | s["C"]),
-        )
-        & (s["A"] & s["C"]),
+        lambda s: (
+            And(
+                s["A"],
+                (s["B"] & s["C"]),
+                (s["A"] | s["C"]),
+            )
+            & (s["A"] & s["C"])
+        ),
         lambda s: frozenset([s["A"], s["B"], s["C"], (s["A"] | s["C"])]),
     ),
 ]

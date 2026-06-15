@@ -1,20 +1,10 @@
-from typing import Generator
-
 import pytest
-from allsat_cnf.utils import MathSAT5Solver
 from pysmt.fnode import FNode
-from pysmt.shortcuts import Solver, is_valid
+from pysmt.shortcuts import is_valid
 from pysmt.solvers.msat import MSatConverter
 
 from enumerators.formula import is_clause
 from enumerators.solvers.mathsat_utils import AtomManager
-
-
-@pytest.fixture
-def converter() -> Generator[MSatConverter, None, None]:
-    with Solver("msat") as msat:
-        msat: MathSAT5Solver
-        yield msat.converter
 
 
 @pytest.fixture
