@@ -7,10 +7,10 @@ from pysmt.fnode import FNode
 from pysmt.shortcuts import And
 from pysmt.solvers.msat import MSatConverter
 
-from enumerators.formula import get_theory_atoms
-from enumerators.solvers.solver import SMTEnumerator
-from enumerators.util.pysmt import SuspendTypeChecking
-from enumerators.walkers.and_flattener import AndFlattener
+from tlemma_enum.formula import get_theory_atoms
+from tlemma_enum.solvers.solver import SMTEnumerator
+from tlemma_enum.util.pysmt import SuspendTypeChecking
+from tlemma_enum.walkers.and_flattener import AndFlattener
 
 
 class UnionFind:

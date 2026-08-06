@@ -1,6 +1,6 @@
 from pysmt.shortcuts import Symbol, REAL
-from enumerators.solvers.mathsat_divide_and_conquer import MathSATDivideAndConquerEnumerator
-from enumerators.solvers.with_partitioning import WithPartitioningWrapper
+from tlemma_enum.solvers.mathsat_divide_and_conquer import MathSATDivideAndConquerEnumerator
+from tlemma_enum.solvers.with_partitioning import WithPartitioningWrapper
 
 # Create variables
 x = Symbol("x", REAL)

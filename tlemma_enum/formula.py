@@ -4,8 +4,8 @@ from typing import Collection
 from pysmt.fnode import FNode
 from pysmt.typing import BOOL
 
-from enumerators.util.pysmt import SuspendTypeChecking
-from enumerators.walkers.normalizer import NormalizerWalker
+from tlemma_enum.util.pysmt import SuspendTypeChecking
+from tlemma_enum.walkers.normalizer import NormalizerWalker
 
 
 def get_normalized(phi: FNode, converter) -> FNode:

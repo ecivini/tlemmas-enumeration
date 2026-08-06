@@ -31,8 +31,8 @@ Solvers use a decorator pattern based on the `SMTEnumerator` interface:
 E.g.:
 
 ```python
-from enumerators.solvers import MathSATDivideAndConquerEnumerator
-from enumerators.solvers import WithPartitioningWrapper
+from tlemma_enum.solvers import MathSATDivideAndConquerEnumerator
+from tlemma_enum.solvers import WithPartitioningWrapper
 
 enumerator = WithPartitioningWrapper(
     MathSATDivideAndConquerEnumerator(parallel_procs=4)
@@ -47,7 +47,7 @@ See `examples/` for more usage patterns.
 
 ```python
 from pysmt.shortcuts import Symbol, REAL
-from enumerators.solvers.mathsat_total import MathSATTotalEnumerator
+from tlemma_enum.solvers.mathsat_total import MathSATTotalEnumerator
 
 # Create variables
 x = Symbol("x", REAL)

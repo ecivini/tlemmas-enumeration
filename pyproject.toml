@@ -1,9 +1,9 @@
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
-name = "tlemmas_enumeration"
+name = "tlemma-enum"
 version = "0.1.0"
 authors = [
   { name = "Massimo Michelutti", email = "massimo.michelutti@studenti.unitn.it" },
@@ -28,8 +28,14 @@ dependencies = [
 [dependency-groups]
 dev = ["ruff>=0.4.0"]
 
+[tool.hatch.build.targets.wheel]
+packages = ["tlemma_enum"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.pytest.ini_options]
-pythonpath = [". src"]
+testpaths = ["tests"]
 addopts = ["--import-mode=importlib"]
 
 [tool.ruff]

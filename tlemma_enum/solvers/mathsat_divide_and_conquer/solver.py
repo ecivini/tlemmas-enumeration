@@ -6,12 +6,12 @@ from pysmt.fnode import FNode
 from pysmt.shortcuts import Solver
 from pysmt.solvers.msat import MSatConverter, MathSAT5Solver
 
-from enumerators.solvers.mathsat_divide_and_conquer.conquer import initialize_worker, parallel_worker
-from enumerators.solvers.mathsat_divide_and_conquer.divide import (
+from tlemma_enum.solvers.mathsat_divide_and_conquer.conquer import initialize_worker, parallel_worker
+from tlemma_enum.solvers.mathsat_divide_and_conquer.divide import (
     DivideByPartialAllSMTStrategy,
     DivideStrategy,
 )
-from enumerators.solvers.mathsat_utils import (
+from tlemma_enum.solvers.mathsat_utils import (
     MSAT_TOTAL_ENUM_OPTIONS,
     AtomManager,
     EncodedClause,
@@ -20,8 +20,8 @@ from enumerators.solvers.mathsat_utils import (
     allsat_callback_store,
     get_converted_atoms,
 )
-from enumerators.solvers.solver import SMTEnumerator
-from enumerators.util.pysmt import SuspendTypeChecking
+from tlemma_enum.solvers.solver import SMTEnumerator
+from tlemma_enum.util.pysmt import SuspendTypeChecking
 
 
 class MathSATDivideAndConquerEnumerator(SMTEnumerator):

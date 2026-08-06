@@ -1,8 +1,8 @@
 from pysmt.fnode import FNode
 from pysmt.solvers.msat import MSatConverter
 
-from enumerators.formula import get_theory_atoms
-from enumerators.solvers.solver import SMTEnumerator
+from tlemma_enum.formula import get_theory_atoms
+from tlemma_enum.solvers.solver import SMTEnumerator
 
 
 class WithProjectionWrapper(SMTEnumerator):

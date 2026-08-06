@@ -2,8 +2,8 @@ from pysmt.fnode import FNode
 from pysmt.shortcuts import is_valid
 from pysmt.typing import BOOL
 
-from enumerators.walkers.walker_bool_abstraction import BooleanAbstractionWalker
-from enumerators.walkers.walker_refinement import RefinementWalker
+from tlemma_enum.walkers.walker_bool_abstraction import BooleanAbstractionWalker
+from tlemma_enum.walkers.walker_refinement import RefinementWalker
 
 
 def test_bool_abstraction_walker(i: FNode, j: FNode, k: FNode) -> None:

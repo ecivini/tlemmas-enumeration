@@ -3,8 +3,8 @@ from pysmt.fnode import FNode
 from pysmt.shortcuts import is_valid
 from pysmt.solvers.msat import MSatConverter
 
-from enumerators.formula import is_clause
-from enumerators.solvers.mathsat_utils import AtomManager
+from tlemma_enum.formula import is_clause
+from tlemma_enum.solvers.mathsat_utils import AtomManager
 
 
 @pytest.fixture

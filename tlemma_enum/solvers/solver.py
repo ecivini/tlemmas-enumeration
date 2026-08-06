@@ -5,8 +5,8 @@ from abc import ABC, abstractmethod
 from pysmt.fnode import FNode
 from pysmt.solvers.msat import MSatConverter
 
-from enumerators.util.stats_collector import StatsCollector
-from enumerators.walkers.term_ite_checker import TermIteChecker
+from tlemma_enum.util.stats_collector import StatsCollector
+from tlemma_enum.walkers.term_ite_checker import TermIteChecker
 
 
 class SMTEnumerator(ABC):

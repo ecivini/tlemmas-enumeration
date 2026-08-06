@@ -1,5 +1,5 @@
 from pysmt.shortcuts import Symbol, REAL
-from enumerators.solvers.mathsat_total import MathSATTotalEnumerator
+from tlemma_enum.solvers.mathsat_total import MathSATTotalEnumerator
 
 # Create variables
 x = Symbol("x", REAL)
