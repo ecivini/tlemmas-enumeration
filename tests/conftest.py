@@ -8,7 +8,7 @@ from pysmt.shortcuts import REAL, Solver, Symbol, read_smtlib
 from pysmt.solvers.msat import MathSAT5Solver, MSatConverter
 from pysmt.typing import BOOL, BV8, INT, ArrayType
 
-from enumerators.solvers import (
+from tlemma_enum.solvers import (
     DivideByPartialAllSMTStrategy,
     DivideByProjectedEnumerationStrategy,
     MathSATDivideAndConquerEnumerator,

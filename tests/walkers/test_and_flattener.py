@@ -4,7 +4,7 @@ import pytest
 from pysmt.fnode import FNode
 from pysmt.shortcuts import And, is_valid
 
-from enumerators.walkers.and_flattener import AndFlattener
+from tlemma_enum.walkers.and_flattener import AndFlattener
 
 FormulaBuilder = Callable[[dict[str, FNode]], FNode]
 FormulasConjunctionBuilder = Callable[[dict[str, FNode]], frozenset[FNode]]

@@ -5,14 +5,14 @@ from pysmt.formula import FormulaContextualizer
 from pysmt.shortcuts import get_env
 from pysmt.solvers.msat import MathSAT5Solver
 
-from enumerators.solvers.mathsat_utils import (
+from tlemma_enum.solvers.mathsat_utils import (
     AtomManager,
     EncodedClause,
     EncodedModel,
     allsat_callback_count,
     allsat_callback_store,
 )
-from enumerators.util.pysmt import SuspendTypeChecking
+from tlemma_enum.util.pysmt import SuspendTypeChecking
 
 _ATOM_MANAGER: AtomManager
 _MSAT_PROJ_ATOMS: list[mathsat.msat_term]

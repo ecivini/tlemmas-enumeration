@@ -4,9 +4,9 @@ from typing import Callable
 import pytest
 from pysmt.fnode import FNode
 
-from enumerators.formula import get_normalized, get_theory_atoms
-from enumerators.solvers import MathSATTotalEnumerator, WithPartitioningWrapper
-from enumerators.solvers.with_partitioning import (
+from tlemma_enum.formula import get_normalized, get_theory_atoms
+from tlemma_enum.solvers import MathSATTotalEnumerator, WithPartitioningWrapper
+from tlemma_enum.solvers.with_partitioning import (
     get_conjoined_components,
     get_partition_relevant_formula,
     partition_atoms,

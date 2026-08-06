@@ -1,15 +1,15 @@
 """Solver classes for All-SMT enumeration."""
 
-from enumerators.solvers.mathsat_divide_and_conquer import (
+from tlemma_enum.solvers.mathsat_divide_and_conquer import (
     DivideByPartialAllSMTStrategy,
     DivideByProjectedEnumerationStrategy,
     DivideStrategy,
     MathSATDivideAndConquerEnumerator,
 )
-from enumerators.solvers.mathsat_total import MathSATTotalEnumerator
-from enumerators.solvers.solver import SMTEnumerator
-from enumerators.solvers.with_partitioning import WithPartitioningWrapper
-from enumerators.solvers.with_projection import WithProjectionWrapper
+from tlemma_enum.solvers.mathsat_total import MathSATTotalEnumerator
+from tlemma_enum.solvers.solver import SMTEnumerator
+from tlemma_enum.solvers.with_partitioning import WithPartitioningWrapper
+from tlemma_enum.solvers.with_projection import WithProjectionWrapper
 
 __all__ = [
     "SMTEnumerator",

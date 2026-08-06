@@ -8,8 +8,8 @@ from pysmt.environment import Environment, get_env, pop_env, push_env
 from pysmt.fnode import FNode
 from pysmt.formula import FormulaContextualizer
 
-from enumerators.solvers.mathsat_divide_and_conquer.ranking import rank_atoms_by_hub_centrality
-from enumerators.solvers.mathsat_utils import (
+from tlemma_enum.solvers.mathsat_divide_and_conquer.ranking import rank_atoms_by_hub_centrality
+from tlemma_enum.solvers.mathsat_utils import (
     MSAT_PARTIAL_ENUM_OPTIONS,
     MSAT_TOTAL_ENUM_OPTIONS,
     AtomManager,
@@ -18,7 +18,7 @@ from enumerators.solvers.mathsat_utils import (
     allsat_callback_store,
     get_converted_atoms,
 )
-from enumerators.util.pysmt import SuspendTypeChecking
+from tlemma_enum.util.pysmt import SuspendTypeChecking
 
 
 class DivideStrategy(Protocol):

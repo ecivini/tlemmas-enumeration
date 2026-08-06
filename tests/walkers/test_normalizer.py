@@ -2,7 +2,7 @@ from pysmt.fnode import FNode
 from pysmt.shortcuts import And
 from pysmt.solvers.msat import MSatConverter
 
-from enumerators.walkers.normalizer import NormalizerWalker
+from tlemma_enum.walkers.normalizer import NormalizerWalker
 
 
 def test_normalizer_walker(x: FNode, y: FNode, a: FNode, converter: MSatConverter) -> None:

@@ -10,7 +10,7 @@ from pysmt.smtlib.parser import SmtLibParser
 from pysmt.smtlib.script import smtlibscript_from_formula
 from pysmt.solvers.msat import MSatConverter
 
-from enumerators.util.pysmt import SuspendTypeChecking
+from tlemma_enum.util.pysmt import SuspendTypeChecking
 
 MSAT_ENUM_OPTIONS = {
     "model_generation": "false",  # force to false so to avoid unnecessary lemmas

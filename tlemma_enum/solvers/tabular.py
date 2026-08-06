@@ -9,12 +9,12 @@ from pathlib import Path
 from pysmt.fnode import FNode
 from pysmt.shortcuts import write_smtlib
 
-from enumerators.formula import get_normalized, read_phi
+from tlemma_enum.formula import get_normalized, read_phi
 
 # from allsat_cnf.polarity_cnfizer import PolarityCNFizer
 # only used for normalization
-from enumerators.solvers.mathsat_total import MathSATTotalEnumerator as _Enumerator
-from enumerators.solvers.solver import SMTEnumerator
+from tlemma_enum.solvers.mathsat_total import MathSATTotalEnumerator as _Enumerator
+from tlemma_enum.solvers.solver import SMTEnumerator
 
 LIBRARY_PATH = Path(__file__).resolve().parent.parent
 
@@ -119,9 +119,7 @@ class TabularSMTSolver(SMTEnumerator):
             if not self._is_partial:
                 total_models_tokenized = output_data.split("MODEL COUNT")
             else:
-                total_models_tokenized = output_data.split(
-                    "NUMBER OF PARTIAL ASSIGNMENTS"
-                )
+                total_models_tokenized = output_data.split("NUMBER OF PARTIAL ASSIGNMENTS")
             if len(total_models_tokenized) != 2:
                 raise ValueError
             total_models_string = total_models_tokenized[1].strip()
@@ -157,18 +155,20 @@ class TabularSMTSolver(SMTEnumerator):
 
 
 class TabularTotalSMTSolver(TabularSMTSolver):
-    """A wrapper for the tabular the TabularSMTSOlver 
+    """A wrapper for the tabular the TabularSMTSOlver
     that always computyes total enumeration"""
 
     def __init__(self) -> None:
         super().__init__(is_partial=False)
 
+
 class TabularPartialSMTSolver(TabularSMTSolver):
-    """A wrapper for the tabular the TabularSMTSOlver 
+    """A wrapper for the tabular the TabularSMTSOlver
     that always computes partial enumeration"""
 
     def __init__(self) -> None:
         super().__init__(is_partial=True)
+
 
 def _clear_tlemmas():
     for item in os.listdir():

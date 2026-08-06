@@ -7,13 +7,13 @@ from pysmt.fnode import FNode
 from pysmt.shortcuts import Solver
 from pysmt.solvers.msat import MSatConverter
 
-from enumerators.solvers.mathsat_utils import (
+from tlemma_enum.solvers.mathsat_utils import (
     MSAT_TOTAL_ENUM_OPTIONS,
     allsat_callback_count,
     allsat_callback_store,
 )
-from enumerators.solvers.solver import SMTEnumerator
-from enumerators.util.pysmt import SuspendTypeChecking
+from tlemma_enum.solvers.solver import SMTEnumerator
+from tlemma_enum.util.pysmt import SuspendTypeChecking
 
 
 class MathSATTotalEnumerator(SMTEnumerator):

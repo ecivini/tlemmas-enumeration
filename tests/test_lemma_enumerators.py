@@ -9,10 +9,10 @@ from pysmt.oracles import get_logic
 from pysmt.shortcuts import And, Array, Int, Real, Solver, ToReal, read_smtlib
 from pysmt.typing import INT
 
-from enumerators.formula import get_normalized
-from enumerators.solvers import MathSATDivideAndConquerEnumerator, MathSATTotalEnumerator, SMTEnumerator
-from enumerators.walkers.walker_bool_abstraction import BooleanAbstractionWalker
-from enumerators.walkers.walker_refinement import RefinementWalker
+from tlemma_enum.formula import get_normalized
+from tlemma_enum.solvers import MathSATDivideAndConquerEnumerator, MathSATTotalEnumerator, SMTEnumerator
+from tlemma_enum.walkers.walker_bool_abstraction import BooleanAbstractionWalker
+from tlemma_enum.walkers.walker_refinement import RefinementWalker
 
 INPUT_FILES_PATH = pathlib.Path(__file__).parent / "items"
 
